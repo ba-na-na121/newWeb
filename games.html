@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Games - Wenzuo Xia</title>
+  <link rel="stylesheet" href="fonts.css" />
+  <link rel="stylesheet" href="common.css" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    canvas#sandCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .game-wrapper {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .artwork {
+      scroll-snap-align: start;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      margin: 80px 0;
+      padding: 20px;
+      position: relative;
+      z-index: 1;
+    }
+    .artwork h2.title {
+      font-size: 2em;
+      text-align: center;
+      color: white;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .description {
+      text-align: center;
+      max-width: 640px;
+      margin: 0 auto;
+      color: #ccc;
+      font-size: 1rem;
+    }
+    .dark-theme {
+      background-color: black;
+      color: white;
+    }
+    header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      padding-top: 40px;
+      padding-bottom: 10px;
+      position: sticky;
+      top: 0;
+      background-color: black;
+      z-index: 10;
+    }
+    header h1 {
+      text-align: center;
+      font-family: 'headerFonts', monospace;
+      font-size: 2.5em;
+      color: white;
+      margin: 0;
+    }
+    header h1 a {
+      text-decoration: none;
+      color: white;
+    }
+    .art-nav {
+      background-color: black;
+      position: sticky;
+      top: 80px;
+      z-index: 9;
+      padding: 10px 0;
+      border-bottom: 1px solid #444;
+    }
+    .art-nav ul {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      flex-wrap: wrap;
+    }
+    .art-nav ul li a {
+      color: #ccc;
+      font-weight: bold;
+      text-decoration: none;
+      text-transform: uppercase;
+      transition: 0.3s;
+      font-size: 0.9em;
+      letter-spacing: 0.5px;
+    }
+    .art-nav ul li a:hover {
+      color: #fff;
+      text-decoration: underline;
+    }
+    html, body {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    hr.divider {
+      border: none;
+      border-top: 1px solid #444;
+      margin: 0 20px 20px 20px;
+    }
+    /* Custom scrollbar for dark theme */
+    body::-webkit-scrollbar {
+      width: 8px;
+    }
+    body::-webkit-scrollbar-track {
+      background: #111;
+    }
+    body::-webkit-scrollbar-thumb {
+      background-color: #555;
+      border-radius: 4px;
+    }
+    body::-webkit-scrollbar-thumb:hover {
+      background-color: #888;
+    }
+  </style>
+</head>
+<body class="dark-theme">
+  <canvas id="sandCanvas"></canvas>
+  <header>
+    <h1><a href="index.html">Wenzuo Xia</a></h1>
+  </header>
+
+  <hr class="divider" />
+  <nav class="art-nav">
+    <ul>
+      <li><a href="#game1">PIXEL ESCAPE</a></li>
+      <li><a href="#game2">GLITCH VOID</a></li>
+      <li><a href="#game3">SHADOW CIRCUIT</a></li>
+    </ul>
+  </nav>
+  <hr class="divider" />
+
+  <section class="artwork" id="game1">
+    <h2 class="title">PIXEL ESCAPE</h2>
+    <div class="game-image">
+      <iframe src="https://wenzuo.itch.io/pixel-escape/embed" width="640" height="380" frameborder="0"></iframe>
+    </div>
+    <p class="description">A fast-paced pixel art platformer where every second counts.</p>
+  </section>
+
+  <section class="artwork" id="game2">
+    <h2 class="title">GLITCH VOID</h2>
+    <div class="game-image">
+      <iframe src="https://wenzuo.itch.io/glitch-void/embed" width="640" height="380" frameborder="0"></iframe>
+    </div>
+    <p class="description">An experimental puzzle game with reality-bending logic.</p>
+  </section>
+
+  <section class="artwork" id="game3">
+    <h2 class="title">SHADOW CIRCUIT</h2>
+    <div class="game-image">
+      <iframe src="https://wenzuo.itch.io/shadow-circuit/embed" width="640" height="380" frameborder="0"></iframe>
+    </div>
+    <p class="description">Hack the grid in this neon-drenched stealth strategy experience.</p>
+  </section>
+
+  <script src="script.js"></script>
+  <script src="scripts/sand.js"></script>
+  <script>
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+
+    window.onload = () => {
+      window.scrollTo(0, 0);
+    };
+
+    let isReverse = false;
+    const canvas = document.getElementById("sandCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    class Particle {
+      constructor() {
+        this.reset();
+      }
+
+      reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 1.5 + 0.5;
+        this.opacity = Math.random() * 0.4 + 0.6;
+        this.velocity = Math.random() * 0.5 + 0.2;
+      }
+
+      update() {
+        this.y += isReverse ? -this.velocity : this.velocity;
+        if (this.y > canvas.height || this.y < 0) {
+          this.reset();
+          this.y = isReverse ? canvas.height : 0;
+        }
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+        ctx.fill();
+      }
+    }
+
+    const particles = Array.from({ length: 200 }, () => new Particle());
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+
+    window.addEventListener("resize", () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+
+    document.addEventListener("click", () => {
+      isReverse = !isReverse;
+    });
+  </script>
+</body>
+</html>

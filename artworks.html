@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Artworks</title>
+  <style>
+    @font-face {
+      font-family: 'HeaderFont';
+      src: url('./fonts/headerFonts.otf') format('opentype');
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      background: black;
+      overflow: hidden;
+      color: white;
+      font-family: 'Courier New', Courier, monospace;
+      width: 100%;
+      height: 100%;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    header {
+      position: fixed;
+      background: black;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 20px;
+      text-align: center;
+      font-size: 35px;
+      z-index: 2;
+      font-family: 'HeaderFont', sans-serif;
+      transition: top 0.3s ease;
+    }
+
+    header a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+      font-family: 'HeaderFont', sans-serif;
+    }
+
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .artwork {
+      min-height: 100vh;
+      padding: 20px;
+      box-sizing: border-box;
+      text-align: center;
+      scroll-snap-align: start;
+      position: relative;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .artwork h2 {
+      font-family: 'Courier New', Courier, monospace;
+      text-transform: uppercase;
+    }
+
+    img {
+      max-width: 90%;
+      height: auto;
+      margin: 20px 0;
+    }
+
+    .artwork p {
+      max-width: 800px;
+      margin: 20px 0;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    html {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      overflow-y: scroll;
+      height: 100vh;
+    }
+
+    nav#art-nav {
+      text-align: center;
+      margin: 20px 0;
+      font-size: 18px;
+    }
+
+    nav#art-nav a {
+      margin: 0 10px;
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+      font-family: 'Courier New', Courier, monospace;
+    }
+    nav#art-nav a:hover {
+      color: #00ffff;
+      text-shadow: 0 0 10px #00ffff;
+    }
+
+    /* 淡化滚动条 */
+    body::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    body::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+
+    body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    /* Firefox */
+    body {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.2) transparent;
+    }
+
+    .image-slider {
+      display: flex;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      gap: 20px;
+      margin: 30px 0;
+      padding: 20px;
+      background: black;
+      border-radius: 12px;
+      justify-content: center;
+      z-index: 1;
+    }
+
+    .image-slider img {
+      flex: 0 0 auto;
+      width: auto;
+      max-width: 80%;
+      max-height: 60vh;
+      object-fit: contain;
+      scroll-snap-align: center;
+      border-radius: 10px;
+      background: black;
+      padding: 10px;
+      box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+      display: block;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="index.html">Wenzuo Xia</a>
+  </header>
+  <hr style="border: 1px solid white; margin: 80px 0 20px;" />
+  <nav id="art-nav" style="text-align: center; z-index: 2; position: relative;">
+    <a href="#art1" style="margin: 0 10px; color: white;">Project 1</a>
+    <a href="#art2" style="margin: 0 10px; color: white;">Project 2</a>
+    <a href="#art3" style="margin: 0 10px; color: white;">Project 3</a>
+  </nav>
+  <hr style="border: 1px solid white; margin: 20px 0 0;" />
+
+  <section id="art1" class="artwork">
+    <h2>"METAL ACCESSORY"</h2>
+    <p>This project utilizes fine wires and hollow metal tubes to craft an intricate, three-dimensional accessory that embodies both structural elegance and sculptural delicacy.</p>
+    <p>The creative process began with an open brainstorming session, where I aimed to design an accessory seldom encountered in everyday life. Initially, the concept of a tie emerged, and I translated this idea into a series of sketches. However, I soon realized the challenges of capturing its three-dimensional quality. This led me to shift my focus toward headwear, a form more conducive to exploring spatial structure and sculptural expression.</p>
+    <div class="image-slider">
+      <img src="ArtWorks照片/2nd sketch of tie.png" loading="lazy" >
+      <img src="ArtWorks照片/2nd sketch of earing.png" loading="lazy"  />
+      
+    </div>
+
+    <p>After completing the initial sketch, I found that the design matched well with my original idea. To better understand how it would look in practice, I used Photoshop to visualize the piece on a model, helping me evaluate its appearance and structure more clearly.</p>
+    <div class="image-slider">
+      <img src="ArtWorks照片/2nd sketch on model.png" loading="lazy" >
+    </div>
+
+    <p>Prototype:</p>
+    <div class="image-slider">
+      <img src="ArtWorks照片/2nd prototypr.png" loading="lazy" >
+    </div>
+
+    <p>After completing the initial prototype, I further refined the structure by threading fine wires through the hollow metal tubes. This technique allowed me to introduce more intricate details, enhance the three-dimensional form, and achieve a better sense of balance and tension throughout the piece. Through these adjustments, the design became more expressive and aligned more closely with my original vision.</p>
+    <p>Final Work From Different Views:</p>
+    <div class="image-slider">
+      <img src="ArtWorks照片/2nd final 1.png" loading="lazy" >
+      <img src="ArtWorks照片/2nd final 2.png" loading="lazy"  />
+      <img src="ArtWorks照片/2nd final 3.png" loading="lazy"  />
+      
+    </div>
+   
+
+
+
+
+
+  </section>
+  <section id="art2" class="artwork">
+    <h2>"SELF PORTRAIT"</h2>
+
+   
+   <p>As an international student in America, I often struggle with questions of self-identity, which has made it difficult for me to feel a true sense of belonging anywhere. In this work, I use various memorable items from my past to reconstruct and share my personal history, shaping and affirming my sense of self.</p>
+  <p>Prototype:</p>
+   <div class="image-slider">
+      <img src="ArtWorks照片/3rd prototype.png" loading="lazy" >
+    </div>
+
+   
+
+   <p>Final Work:</p>
+   <div class="image-slider">
+    <img src="ArtWorks照片/3rd final past.png" loading="lazy" >
+  </div>
+   <p>For the final work, I used Adobe Illustrator to edit the composition. The background is rendered in a muted gray tone, and the patterns are intentionally blurred and vintage in style. In the background, numerous fireworks light up the scene, symbolizing unforgettable memories from my past. At the center of the image, a pattern resembling my face emerges. The river transforms into my hair, the boat becomes my ear, and the paddle shapes my eyebrow — reflecting the times I spent boating with friends near my grandmother’s house. The bicycle wheels form my eyes, another type of firework shapes my nose, and a dragon boat — a traditional vessel used in Chinese rituals — becomes my mouth. This visual approach reflects the fading nature of my memories, the impossibility of returning to the past, and a sense of disconnection from reality.
+  </p>
+  <p>Additions for this project</p>
+  <p>In addition to the main work, I also created two more self-portraits inspired by personal reflection. One represents my “present.” In this image, I use a game machine to symbolize my current self, as playing games has become a meaningful part of my life. I also incorporate various elements that represent who I am today, arranging them into the shape of an arrow — an arrow that connects my past to my future.</p>
+  <div class="image-slider">
+    <img src="ArtWorks照片/3rd present.png" loading="lazy"  />
+  </div>
+  <p>The second piece represents my “future.” Unlike the muted tones of the previous works, this image introduces unique colors to suggest the uncertainty and possibility of the future. The tags wrapped around my arm symbolize the different careers and identities I may hold as I move forward.</p>
+  <div class="image-slider">
+    <img src="ArtWorks照片/3rd future.png" loading="lazy" />
+  </div>
+    
+  
+  
+  <p>Outcome and reflections.</p>
+    <div class="image-slider">
+      <img src="path/to/image2c.jpg" loading="lazy" alt="Project 2 Image 3" />
+    </div>
+  </section>
+  <section id="art3" class="artwork">
+    <h2>Project 3</h2>
+
+    <p>Conceptual background of Project 3.</p>
+    <div class="image-slider">
+      <img src="path/to/image3.jpg" loading="lazy" alt="Project 3 Image 1" />
+    </div>
+
+    <p>Design and implementation details.</p>
+    <div class="image-slider">
+      <img src="path/to/image3b.jpg" loading="lazy" alt="Project 3 Image 2" />
+    </div>
+
+    <p>Final presentation and results.</p>
+    <div class="image-slider">
+      <img src="path/to/image3c.jpg" loading="lazy" alt="Project 3 Image 3" />
+    </div>
+  </section>
+
+  <canvas id="sandCanvas"></canvas>
+
+  <script>
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+
+    const canvas = document.getElementById('sandCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let particles = [];
+    const maxParticles = 500;
+    let isReverse = false; // 控制沙子方向
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    class Particle {
+      constructor() {
+        this.reset();
+      }
+
+      reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 2 + 1;
+        this.speed = Math.random() * 0.5 + 0.3;
+        this.opacity = Math.random() * 0.4 + 0.6;
+      }
+
+      update() {
+        this.y += isReverse ? -this.speed : this.speed;
+        if (this.y > canvas.height || this.y < 0) this.reset();
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < maxParticles; i++) {
+      particles.push(new Particle());
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.update();
+        p.draw();
+      });
+      requestAnimationFrame(animate);
+    }
+
+    document.addEventListener('click', () => {
+      isReverse = !isReverse;
+    });
+
+    animate();
+
+    // Smooth scroll with scroll throttling to snap to sections
+    const sections = document.querySelectorAll('.artwork');
+    let currentSection = 0;
+    let scrollTimeout = null;
+    let isScrolling = false;
+
+    function scrollToSection(index) {
+      if (index < 0) index = 0;
+      if (index >= sections.length) index = sections.length - 1;
+      currentSection = index;
+      sections[index].scrollIntoView({behavior: 'smooth'});
+    }
+
+    // Update currentSection on nav click
+    document.getElementById('art-nav').addEventListener('click', (e) => {
+      if (e.target.tagName === 'A') {
+        e.preventDefault();
+        const targetId = e.target.getAttribute('href').slice(1);
+        const targetIndex = Array.from(sections).findIndex(s => s.id === targetId);
+        if (targetIndex !== -1) {
+          currentSection = targetIndex;
+          scrollToSection(currentSection);
+        }
+      }
+    });
+
+    // Initialize scroll position inside window.onload
+    // window.onload = () => {
+    //   scrollToSection(0);
+    // };
+
+    let lastScrollTop = 0;
+    const header = document.querySelector('header');
+
+    window.addEventListener('scroll', () => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      if (scrollTop > lastScrollTop) {
+        // 向下滚动，隐藏header
+        header.style.top = '-100px';
+      } else {
+        // 向上滚动，显示header
+        header.style.top = '0';
+      }
+      lastScrollTop = scrollTop;
+    });
+  </script>
+</body>
+</html>
