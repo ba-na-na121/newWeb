@@ -100,16 +100,40 @@
       font-size: 18px;
     }
 
-    nav#art-nav a {
-      margin: 0 10px;
+    /* 分类导航新样式 */
+    .category-group {
+      margin-bottom: 30px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding-left: 20px;
+    }
+
+    .category {
+      font-size: 22px;
+      font-weight: bold;
+      color: white;
+      margin-bottom: 0;
+      text-align: left;
+    }
+
+    .category-links {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .category-links a {
       color: white;
       text-decoration: none;
       font-weight: bold;
       font-family: 'Courier New', Courier, monospace;
     }
-    nav#art-nav a:hover {
-      color: #00ffff;
-      text-shadow: 0 0 10px #00ffff;
+
+    .category-links a:hover {
+      color: #ff5555;
+      text-shadow: 0 0 10px #ff5555;
     }
 
     #scroll-buttons {
@@ -158,6 +182,14 @@
       scrollbar-color: rgba(255,255,255,0.2) transparent;
     }
 
+    .category-line {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 1px;
+    }
+
     .image-slider {
       display: flex;
       overflow-x: auto;
@@ -194,18 +226,50 @@
   </header>
   <hr style="border: 1px solid white; margin: 10px 0 0;">
   <hr style="border: 1px solid white; margin: 80px 0 20px;" />
-  <nav id="art-nav" style="text-align: center; z-index: 2; position: relative;">
-    <a href="#art1" style="margin: 0 10px; color: white;">"METAL ACCESSORY"</a>
-    <a href="#art2" style="margin: 0 10px; color: white;">"SELF PORTRAIT"</a>
-    <a href="#art3" style="margin: 0 10px; color: white;">"SHORT WRITINGS"</a>
-    <a href="#art4" style="margin: 0 10px; color: white;">"WIRED HEART"</a>
-    <a href="#art5" style="margin: 0 10px; color: white;">"BOOK: DEJA VU!"</a>
-    <a href="#art6" style="margin: 0 10px; color: white;">"SPACE CUBE"</a>
+  <nav id="art-nav" style="display: flex; flex-direction: column; align-items: center;">
+    <div class="category-group">
+      <div class="category-line">
+        <span class="category">FASHION:</span>
+        <div class="category-links">
+          <a href="#art1">"METAL ACCESSORY"</a>
+          <a href="#art7">"PAPER GARMENT"</a>
+          <a href="#art8">"WILD WEST"</a>
+        </div>
+      </div>
+    </div>
+    <div class="category-group">
+      <div class="category-line">
+        <span class="category">VISUALS:</span>
+        <div class="category-links">
+          <a href="#art2">"SELF PORTRAIT"</a>
+          <a href="#art3">"SHORT WRITINGS"</a>
+          <a href="#art5">"BOOK: DEJA VU!"</a>
+        </div>
+      </div>
+    </div>
+    <div class="category-group">
+      <div class="category-line">
+        <span class="category">MODELS:</span>
+        <div class="category-links">
+          <a href="#art4">"WIRED HEART"</a>
+          <a href="#art6">"SPACE CUBE"</a>
+        </div>
+      </div>
+    </div>
+    <div class="category-group">
+      <div class="category-line">
+        <span class="category">SOUNDS:</span>
+        <div class="category-links">
+          <span style="color: grey;">(Coming Soon)</span>
+        </div>
+      </div>
+    </div>
   </nav>
   <hr style="border: 1px solid white; margin: 20px 0 0;" />
 
   <section id="art1" class="artwork">
     <h2>"METAL ACCESSORY"</h2>
+    <p style="font-style: italic; margin-top: -10px;">FASHION</p>
     <p>This project utilizes fine wires and hollow metal tubes to craft an intricate, three-dimensional accessory that embodies both structural elegance and sculptural delicacy.</p>
     <p>The creative process began with an open brainstorming session, where I aimed to design an accessory seldom encountered in everyday life. Initially, the concept of a tie emerged, and I translated this idea into a series of sketches. However, I soon realized the challenges of capturing its three-dimensional quality. This led me to shift my focus toward headwear, a form more conducive to exploring spatial structure and sculptural expression.</p>
     <div class="image-slider">
@@ -241,6 +305,7 @@
   </section>
   <section id="art2" class="artwork">
     <h2>"SELF PORTRAIT"</h2>
+    <p style="font-style: italic; margin-top: -10px;">VISUALS</p>
 
    
    <p>As an international student in America, I often struggle with questions of self-identity, which has made it difficult for me to feel a true sense of belonging anywhere. In this work, I use various memorable items from my past to reconstruct and share my personal history, shaping and affirming my sense of self.</p>
@@ -272,6 +337,7 @@
 </section>
 <section id="art3" class="artwork">
   <h2>"SHORT WRITINGS"</h2>
+  <p style="font-style: italic; margin-top: -10px;">VISUALS</p>
     <div class="image-slider">
       <img src="ArtWorks照片/4th cover.png" loading="lazy" />
     </div>
@@ -311,6 +377,7 @@
 
 <section id="art4" class="artwork">
   <h2>"WIRED HEART"</h2>
+  <p style="font-style: italic; margin-top: -10px;">MODELS</p>
   <p>After studying Ruth Asawa’s wire projects, I was deeply drawn to the elegance and fluidity of her work. Her ability to transform simple materials into intricate, organic forms inspired me to explore wire as a medium myself. Motivated by her approach, I used wires to create this piece, focusing on interpreting the patterns and textures of a leaf. While influenced by her techniques, I allowed the twisted wires to grow and branch out naturally, eventually shaping into the form of a heart — symbolizing the transformation of a tree’s veins into the pulse of life.
     Through this process, I was also reflecting on the relationship between nature and human activity. The industrial material of wire, originally cold and mechanical, is reshaped here to evoke natural growth and vitality, bridging the gap between the organic world and human-made constructs.</p>
   <p>Sketches of Leaf:</p>
@@ -338,6 +405,7 @@
 
 <section id="art5" class="artwork">
   <h2>"BOOK: DEJA VU!"</h2>
+  <p style="font-style: italic; margin-top: -10px;">VISUALS</p>
   <p>This project focuses on creating a book based on various idioms related to time. Inspired by my personal experiences and the familiar feeling of déjà vu that many people encounter, I developed a series of short stories. Presented in the style of a children’s picture book, these stories explore the fluidity of time through playful and nostalgic illustrations.</p>
   <p>Processes:</p>
   <p>I began by brainstorming to expand my ideas, then selected one concept to further develop. After refining the idea, I created a storyboard and selected appropriate materials. I then illustrated the stories and printed them out. Finally, I mounted the pages onto cardboard and completed the book through hand-binding.</p>
@@ -385,6 +453,7 @@
 
 <section id="art6" class="artwork">
   <h2>"SPACE CUBE"</h2>
+  <p style="font-style: italic; margin-top: -10px;">MODELS</p>
   <p>This is a spatial artwork created through the combination of wooden pieces and hollow metal tubes. I used wood and hollow metal tubes as the primary materials for this project. Utilizing laser cutting techniques, I crafted hollow pentagon shapes to enhance the visual appearance. I then used round-head paper fasteners to connect the pentagons and form the geometric structure. After assembling the base, I used wires to connect each hollow metal tube, creating a secondary linear structure. The concept behind the line structure is to form a star-shaped pattern when viewed from above by strategically connecting triangular forms.</p>
   <div class="image-slider">
     <img src="ArtWorks照片/7th space cube cover.png" loading="lazy" >
@@ -416,6 +485,79 @@
 
 
 
+
+</section>
+<section id="art7" class="artwork">
+  <h2>"PAPER GARMENT"</h2>
+  <p style="font-style: italic; margin-top: -10px;">FASHION</p>
+  <p>This project explores the transformation of a flat surface into a three-dimensional garment structure through simple yet intentional interventions. I began by drawing three types of lines — dominant, subdominant, and subordinate — on a sheet of paper. Following the paths of these lines, I made precise cuts, leaving narrow openings, and then twisted and manipulated the paper before reconnecting the edges. Through this process, I created a sculptural form with a distinctive and dynamic sense of movement.
+
+    This project also challenged me to think carefully about the relationships between line, surface, and volume. Inspired by architectural prototypes that use similar techniques — such as early paper models by Zaha Hadid and the structural experiments of Shigeru Ban — I discovered new possibilities for using paper as a material for both artistic and structural exploration. This experience broadened my understanding of how a simple sheet of paper can evolve into complex, spatial compositions.</p>
+  <p>Paper Practice:</p>
+  <div class="image-slider">
+    <img src="ArtWorks照片/8th practice.png" loading="lazy" >
+    <img src="ArtWorks照片/8th practice 2.png" loading="lazy" >
+  </div>
+  <p>Final Works:</p>
+
+  
+
+
+  <div class="image-slider">
+    <img src="ArtWorks照片/8th final 1.png" loading="lazy" >
+    <img src="ArtWorks照片/8th final 2.png" loading="lazy" >
+  </div>
+  
+  <div class="image-slider">
+    <img src="ArtWorks照片/8th final 3.png" loading="lazy" >
+    <img src="ArtWorks照片/8th final 4.png" loading="lazy" >
+  </div>
+  <p>Paper Garments On Me</p>
+  <div class="image-slider">
+    <img src="ArtWorks照片/8th product on model.png" loading="lazy" >
+   
+  </div>
+
+</section>
+
+</section>
+<section id="art8" class="artwork">
+  <h2>"WILD WESt"</h2>
+  <p style="font-style: italic; margin-top: -10px;">FASHION</p>
+  <p>This is a jacket I created for my fashion studio. As a fashion editor, I would spotlight this collection for its unique blend of streetwear and Wild West culture. The story behind this piece draws inspiration from the rich, rebellious spirit of the American Old West — a world marked by danger and defiance. Reimagining the classic denim jacket with authentic old-west patches, the design feels like a journey through time, merging historical influences with modern street style to create a fresh and dynamic expression.</p>
+  <p>Patterns Making:</p>
+  <div class="image-slider">
+    <img src="ArtWorks照片/9th patterns.png" loading="lazy" >
+    <img src="ArtWorks照片/9th patterns 2.png" loading="lazy" >
+  </div>
+  <p>Prototype:</p>
+
+  <div class="image-slider">
+    <img src="ArtWorks照片/9th prototype.png" loading="lazy" >
+    
+  </div>
+  <9>Final Works:</9>
+  
+  <div class="image-slider">
+    <img src="ArtWorks照片/9th final 1.png" loading="lazy" >
+    <img src="ArtWorks照片/9th final 2.png" loading="lazy" >
+    <img src="ArtWorks照片/9th final 3.png" loading="lazy" >
+    <img src="ArtWorks照片/9th final 4.png" loading="lazy" >
+  </div>
+  <p>Garments On Me:</p>
+  <div class="image-slider">
+    <img src="ArtWorks照片/9th on model1.png" loading="lazy" >
+    <img src="ArtWorks照片/9th on model2.png" loading="lazy" >
+    <img src="ArtWorks照片/9th on model3.png" loading="lazy" >
+    <img src="ArtWorks照片/9th on model4.png" loading="lazy" >
+   
+  </div>
+  <p>Video:</p>
+  <div class="video-wrapper">
+    <video controls>
+      <source src="video/9th Video.mp4" type="video/mp4">
+    </video>
+  </div>
 
 </section>
 
