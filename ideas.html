@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chrome Dino in p5.js</title>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+  <style>
+    @font-face {
+      font-family: 'PixelFont';
+      src: url('fonts/headerFonts.otf') format('opentype');
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000000;
+      color: white;
+      font-family: 'PixelFont', monospace;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      image-rendering: pixelated;
+    }
+    #main-header {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 48px;
+      cursor: pointer;
+      text-shadow: 2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000;
+      font-family: 'PixelFont', monospace;
+      animation: fadeIn 1s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+<header id="main-header" onclick="window.location.href='index.html'">Wenzuo Xia</header>
+<script>
+let dino;
+let groundY;
+let gravity = 1;
+let obstacles = [];
+let gameOver = false;
+let score = 0;
+let highScore = 0;
+let speed = 6;
+
+function setup() {
+  createCanvas(windowWidth, 200).position(0, 140);
+  groundY = height - 40;
+  dino = new Dino();
+}
+
+function draw() {
+  background(0);
+  fill(180);
+  rect(0, groundY, width, 2);
+
+  if (!gameOver) {
+    score += 0.1;
+  }
+
+  dino.update();
+  dino.show();
+
+  if (frameCount % 90 === 0 && !gameOver) {
+    obstacles.push(new Obstacle());
+  }
+
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    obstacles[i].update();
+    obstacles[i].show();
+
+    if (obstacles[i].hits(dino)) {
+      gameOver = true;
+    }
+
+    if (obstacles[i].offscreen()) {
+      obstacles.splice(i, 1);
+    }
+  }
+
+  fill(255);
+  textSize(28);
+  textAlign(LEFT);
+  push();
+  textFont('Courier New');
+  text("DISTANCE: " + floor(score), 20, 40);
+  pop();
+
+  push();
+  textFont('Courier New');
+  text("HIGHEST SCORE: " + floor(highScore), 250, 40);
+  pop();
+
+  if (gameOver) {
+    fill(255, 50, 50);
+    textSize(32);
+    textAlign(CENTER);
+    textFont('Courier New');
+    text("GAME OVER", width / 2, height / 2 + 30);
+    highScore = max(highScore, floor(score));
+  }
+}
+
+function keyPressed() {
+  if (key === ' ' || keyCode === UP_ARROW) {
+    if (gameOver) {
+      resetGame();
+    } else {
+      dino.jump();
+    }
+  }
+}
+
+function touchStarted() {
+  if (gameOver) {
+    resetGame();
+  } else {
+    dino.jump();
+  }
+}
+
+function resetGame() {
+  gameOver = false;
+  score = 0;
+  obstacles = [];
+  dino.reset();
+}
+
+class Dino {
+  constructor() {
+    this.r = 40;
+    this.x = 50;
+    this.y = groundY - this.r;
+    this.vy = 0;
+    this.jumpForce = 15;
+    this.grounded = true;
+  }
+
+  jump() {
+    if (this.grounded) {
+      this.vy = -this.jumpForce;
+      this.grounded = false;
+    }
+  }
+
+  reset() {
+    this.y = groundY - this.r;
+    this.vy = 0;
+    this.grounded = true;
+  }
+
+  update() {
+    this.vy += gravity;
+    this.y += this.vy;
+
+    if (this.y >= groundY - this.r) {
+      this.y = groundY - this.r;
+      this.vy = 0;
+      this.grounded = true;
+    }
+  }
+
+  show() {
+    fill(255);
+    rect(this.x, this.y, this.r, this.r);
+  }
+}
+
+class Obstacle {
+  constructor() {
+    this.w = random(20, 40);
+    this.h = random(30, 60);
+    this.x = width;
+    this.y = groundY - this.h;
+  }
+
+  update() {
+    this.x -= speed;
+  }
+
+  show() {
+    fill(200);
+    rect(this.x, this.y, this.w, this.h);
+  }
+
+  hits(dino) {
+    return (
+      dino.x + dino.r > this.x &&
+      dino.x < this.x + this.w &&
+      dino.y + dino.r > this.y
+    );
+  }
+
+  offscreen() {
+    return this.x + this.w < 0;
+  }
+}
+</script>
+</p>
+  <p style="position: absolute; top: calc(100% - 100px); width: 100%; text-align: center; color: white; font-family: 'Courier New', Courier, monospace; font-size: 16px; opacity: 0.7;">
+    This page is still under construction... maybe later.
+  </p>
+</body>
+</html>
