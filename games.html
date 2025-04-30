@@ -2,245 +2,376 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Games - Wenzuo Xia</title>
-  <link rel="stylesheet" href="fonts.css" />
-  <link rel="stylesheet" href="common.css" />
-  <link rel="stylesheet" href="style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Games</title>
   <style>
-    canvas#sandCanvas {
+    @font-face {
+      font-family: 'HeaderFont';
+      src: url('./fonts/headerFonts.otf') format('opentype');
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      background: black;
+      overflow: hidden;
+      color: white;
+      font-family: 'Courier New', Courier, monospace;
+      width: 100%;
+      height: 100%;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    header {
+      position: fixed;
+      background: black;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 20px;
+      text-align: center;
+      font-size: 35px;
+      z-index: 2;
+      font-family: 'HeaderFont', sans-serif;
+      transition: top 0.3s ease;
+    }
+
+    header a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+      font-family: 'HeaderFont', sans-serif;
+    }
+
+    canvas {
       position: fixed;
       top: 0;
       left: 0;
       z-index: 0;
-      width: 100%;
-      height: 100%;
       pointer-events: none;
     }
-    .game-wrapper {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 20px;
-    }
+
     .artwork {
-      scroll-snap-align: start;
       min-height: 100vh;
+      padding: 20px;
+      box-sizing: border-box;
+      text-align: center;
+      scroll-snap-align: start;
+      position: relative;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      margin: 80px 0;
-      padding: 20px;
-      position: relative;
-      z-index: 1;
-    }
-    .artwork h2.title {
-      font-size: 2em;
-      text-align: center;
-      color: white;
-      font-weight: bold;
-      text-transform: uppercase;
-    }
-    .description {
-      text-align: center;
-      max-width: 640px;
-      margin: 0 auto;
-      color: #ccc;
-      font-size: 1rem;
-    }
-    .dark-theme {
-      background-color: black;
-      color: white;
-    }
-    header {
-      display: flex;
       justify-content: center;
       align-items: center;
-      flex-direction: column;
-      padding-top: 40px;
-      padding-bottom: 10px;
-      position: sticky;
-      top: 0;
-      background-color: black;
-      z-index: 10;
     }
-    header h1 {
-      text-align: center;
-      font-family: 'headerFonts', monospace;
-      font-size: 2.5em;
-      color: white;
-      margin: 0;
-    }
-    header h1 a {
-      text-decoration: none;
-      color: white;
-    }
-    .art-nav {
-      background-color: black;
-      position: sticky;
-      top: 80px;
-      z-index: 9;
-      padding: 10px 0;
-      border-bottom: 1px solid #444;
-    }
-    .art-nav ul {
-      display: flex;
-      justify-content: center;
-      gap: 20px;
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      flex-wrap: wrap;
-    }
-    .art-nav ul li a {
-      color: #ccc;
-      font-weight: bold;
-      text-decoration: none;
+
+    .artwork h2 {
+      font-family: 'Courier New', Courier, monospace;
       text-transform: uppercase;
-      transition: 0.3s;
-      font-size: 0.9em;
-      letter-spacing: 0.5px;
+      font-size: 24px;
+      margin-bottom: 20px;
     }
-    .art-nav ul li a:hover {
-      color: #fff;
-      text-decoration: underline;
+
+    img {
+      max-width: 90%;
+      height: auto;
+      margin: 20px 0;
     }
-    html, body {
+
+    .artwork p {
+      max-width: 800px;
+      margin: 20px 0;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    html {
       scroll-snap-type: y mandatory;
       scroll-behavior: smooth;
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      overflow-y: auto;
-      overflow-x: hidden;
+      overflow-y: scroll;
+      height: 100vh;
     }
-    hr.divider {
+
+    nav#art-nav {
+      display: flex; justify-content: center; gap: 30px; margin: 40px 0; font-size: 18px;
+    }
+
+    nav#art-nav a {
+      color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace;
+    }
+
+    nav#art-nav a:hover {
+      color: #ff5555;
+      text-shadow: 0 0 10px #ff5555;
+    }
+
+    #scroll-buttons {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 5;
+    }
+
+    #scroll-buttons button {
+      background: transparent;
+      color: white;
       border: none;
-      border-top: 1px solid #444;
-      margin: 0 20px 20px 20px;
+      border-radius: 50%;
+      padding: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: none;
+      transition: transform 0.2s ease;
     }
-    /* Custom scrollbar for dark theme */
+
+    #scroll-buttons button:hover {
+      transform: scale(1.5);
+    }
+
+    /* 淡化滚动条 */
     body::-webkit-scrollbar {
-      width: 8px;
+      width: 6px;
     }
-    body::-webkit-scrollbar-track {
-      background: #111;
-    }
+
     body::-webkit-scrollbar-thumb {
-      background-color: #555;
-      border-radius: 4px;
+      background-color: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
     }
-    body::-webkit-scrollbar-thumb:hover {
-      background-color: #888;
+
+    body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    /* Firefox */
+    body {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.2) transparent;
+    }
+
+    .category-line {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 1px;
+    }
+
+    .image-slider {
+      display: flex;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      gap: 20px;
+      margin: 30px 0;
+      padding: 20px;
+      background: black;
+      border-radius: 12px;
+      justify-content: center;
+      z-index: 1;
+    }
+
+    .image-slider img {
+      flex: 0 0 auto;
+      width: auto;
+      max-width: 80%;
+      max-height: 60vh;
+      object-fit: contain;
+      scroll-snap-align: center;
+      border-radius: 10px;
+      background: black;
+      padding: 10px;
+      box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+      display: block;
+      margin: 0 auto;
+    }
+
+    .game-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .game-header img {
+      max-width: 80%;
+      height: auto;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+
+    .game-header p {
+      font-size: 16px;
+      color: #cccccc;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    .iframe-wrapper {
+      width: 90%;
+      max-width: 800px;
+      height: 200px;
+      margin: 20px auto 0;
+      border-radius: 12px;
+      overflow: hidden;
     }
   </style>
 </head>
-<body class="dark-theme">
-  <canvas id="sandCanvas"></canvas>
+<body>
   <header>
-    <h1><a href="index.html">Wenzuo Xia</a></h1>
+    <a href="index.html">Wenzuo Xia</a>
   </header>
-
-  <hr class="divider" />
-  <nav class="art-nav">
-    <ul>
-      <li><a href="#game1">PIXEL ESCAPE</a></li>
-      <li><a href="#game2">GLITCH VOID</a></li>
-      <li><a href="#game3">SHADOW CIRCUIT</a></li>
-    </ul>
+  <hr style="border: 1px solid white; margin: 10px 0 0;">
+  <hr style="border: 1px solid white; margin: 80px 0 20px;" />
+  <nav id="art-nav" style="display: flex; justify-content: center; gap: 30px; margin: 40px 0; font-size: 18px;">
+    <a href="#game1" style="color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-weight: bold;">"SIUSIUBOOM"</a>
+    <a href="#game2" style="color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-weight: bold;">"WALKING SIM"</a>
   </nav>
-  <hr class="divider" />
+  <hr style="border: 1px solid white; margin: 20px 0 0;" />
+
 
   <section class="artwork" id="game1">
-    <h2 class="title">PIXEL ESCAPE</h2>
-    <div class="game-image">
-      <iframe src="https://wenzuo.itch.io/pixel-escape/embed" width="640" height="380" frameborder="0"></iframe>
+    <h2>"SIUSIUBOOM"</h2>
+    <div class="image-slider">
+      <img src="ArtWorks照片/Game 1.png" loading="lazy" >
     </div>
-    <p class="description">A fast-paced pixel art platformer where every second counts.</p>
+    <p style="font-style: italic; margin-top: -10px;">This is a first-person action game where the player takes on the role of a toy ammo crate. With the help of toy soldiers, the player must launch themselves toward the frontlines to provide support. But be careful — falling to the ground could alert the human owner, and that’s something you want to avoid…</p>
+    <div class="iframe-wrapper">
+      <iframe
+        frameborder="0"
+        src="https://itch.io/embed/3456541"
+        width="100%"
+        height="100%"
+        allowfullscreen
+        style="display: block; border: none;">
+        <a href="https://russe111.itch.io/siusiuboom">Play SIUSIUBOOM on itch.io</a>
+      </iframe>
+    </div>
   </section>
 
   <section class="artwork" id="game2">
-    <h2 class="title">GLITCH VOID</h2>
-    <div class="game-image">
-      <iframe src="https://wenzuo.itch.io/glitch-void/embed" width="640" height="380" frameborder="0"></iframe>
-    </div>
-    <p class="description">An experimental puzzle game with reality-bending logic.</p>
+    <h2 style="color: grey;">"WALKING SIM"</h2>
+    <p style="font-style: italic; color: grey;">Coming Soon...</p>
+    <p style="font-style: italic; color: grey;">You can find more of my experimental practice projects on my itch.io page</p>
   </section>
 
-  <section class="artwork" id="game3">
-    <h2 class="title">SHADOW CIRCUIT</h2>
-    <div class="game-image">
-      <iframe src="https://wenzuo.itch.io/shadow-circuit/embed" width="640" height="380" frameborder="0"></iframe>
-    </div>
-    <p class="description">Hack the grid in this neon-drenched stealth strategy experience.</p>
-  </section>
+  <canvas id="sandCanvas"></canvas>
 
-  <script src="script.js"></script>
-  <script src="scripts/sand.js"></script>
+  <div id="scroll-buttons">
+    <button id="scroll-up">↑</button>
+    <button id="scroll-down">↓</button>
+  </div>
+
   <script>
-    if ('scrollRestoration' in history) {
-      history.scrollRestoration = 'manual';
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual';
+}
+
+const canvas = document.getElementById('sandCanvas');
+const ctx = canvas.getContext('2d');
+
+let particles = [];
+const maxParticles = 500;
+let isReverse = false;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+class Particle {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    this.x = Math.random() * canvas.width;
+    this.y = Math.random() * canvas.height;
+    this.size = Math.random() * 2 + 1;
+    this.speed = Math.random() * 0.5 + 0.3;
+    this.opacity = Math.random() * 0.4 + 0.6;
+  }
+  update() {
+    this.y += isReverse ? -this.speed : this.speed;
+    if (this.y > canvas.height || this.y < 0) this.reset();
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+for (let i = 0; i < maxParticles; i++) {
+  particles.push(new Particle());
+}
+
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles.forEach(p => {
+    p.update();
+    p.draw();
+  });
+  requestAnimationFrame(animate);
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('nav') && !e.target.closest('#scroll-buttons')) {
+    isReverse = !isReverse;
+  }
+});
+
+animate();
+
+// 平滑滚动逻辑
+const sections = document.querySelectorAll('.artwork');
+let currentSection = 0;
+
+// 平滑滚动到指定section顶部
+function scrollToSection(index) {
+  if (index < 0) index = 0;
+  if (index >= sections.length) index = sections.length - 1;
+  currentSection = index;
+  sections[index].scrollIntoView({ behavior: 'smooth' });
+}
+
+// 点击导航栏链接，直接滑到对应section顶部
+document.getElementById('art-nav').addEventListener('click', (e) => {
+  if (e.target.tagName === 'A') {
+    e.preventDefault();
+    const targetId = e.target.getAttribute('href').substring(1);
+    const targetSection = document.getElementById(targetId);
+    if (targetSection) {
+      targetSection.scrollIntoView({ behavior: 'smooth' });
+      currentSection = Array.from(sections).indexOf(targetSection);
     }
+  }
+});
 
-    window.onload = () => {
-      window.scrollTo(0, 0);
-    };
+// 点击上下箭头
+document.getElementById('scroll-up').addEventListener('click', () => {
+  scrollToSection(currentSection - 1);
+});
+document.getElementById('scroll-down').addEventListener('click', () => {
+  scrollToSection(currentSection + 1);
+});
 
-    let isReverse = false;
-    const canvas = document.getElementById("sandCanvas");
-    const ctx = canvas.getContext("2d");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    class Particle {
-      constructor() {
-        this.reset();
-      }
-
-      reset() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.size = Math.random() * 1.5 + 0.5;
-        this.opacity = Math.random() * 0.4 + 0.6;
-        this.velocity = Math.random() * 0.5 + 0.2;
-      }
-
-      update() {
-        this.y += isReverse ? -this.velocity : this.velocity;
-        if (this.y > canvas.height || this.y < 0) {
-          this.reset();
-          this.y = isReverse ? canvas.height : 0;
-        }
-      }
-
-      draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
-        ctx.fill();
-      }
-    }
-
-    const particles = Array.from({ length: 200 }, () => new Particle());
-
-    function animate() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach(p => {
-        p.update();
-        p.draw();
-      });
-      requestAnimationFrame(animate);
-    }
-
-    animate();
-
-    window.addEventListener("resize", () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    });
-
-    document.addEventListener("click", () => {
-      isReverse = !isReverse;
-    });
+// Header hide/show
+let lastScrollTop = 0;
+const header = document.querySelector('header');
+window.addEventListener('scroll', () => {
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  if (scrollTop > lastScrollTop) {
+    header.style.top = '-100px';
+  } else {
+    header.style.top = '0';
+  }
+  lastScrollTop = scrollTop;
+});
   </script>
 </body>
 </html>
