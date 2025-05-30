@@ -33,7 +33,7 @@
 
   .view-section {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 8px;
     padding: 10px;
     justify-content: start;
@@ -45,17 +45,18 @@
     overflow: hidden;
     box-shadow: 0 2px 6px rgba(0,0,0,0.04);
     break-inside: avoid;
-    width: 400px;
+    width: 100%;
     margin: 0;
   }
 
   .post img, .post video {
-    width: 400px;
-    height: 400px;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
     object-position: center;
     display: block;
     border-bottom: 1px solid #eee;
+    border-radius: 8px;
   }
 
   .post p {
@@ -92,7 +93,6 @@
     font-weight: bold;
   }
   </style>
-  <script type="module" src="firebase-config.js"></script>
 </head>
 <body>
   <nav>
@@ -114,6 +114,7 @@
   <section id="likes" class="view-section" style="display:none;">
   </section>
 
+  <script type="module" src="./firebase-config.js"></script>
   <script>
     const posts = [];
     const likes = [];
@@ -327,6 +328,5 @@
       loadPostsFromFirebase();
     });
   </script>
-  <script type="module" src="./firebase-config.js"></script>
 </body>
 </html>
