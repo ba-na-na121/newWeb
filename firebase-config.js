@@ -1,10 +1,14 @@
 // Firebase setup shared by password.html and lifestyle.html.
 // This config is public by design; what protects the data are the rules in
 // firestore.rules and storage.rules, plus the two login accounts below.
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+// All Firebase modules must come from the same version.
+export const FB_SDK = "https://www.gstatic.com/firebasejs/13.0.0";
+
+const { initializeApp } = await import(`${FB_SDK}/firebase-app.js`);
+const { getAuth } = await import(`${FB_SDK}/firebase-auth.js`);
+const { getFirestore } = await import(`${FB_SDK}/firebase-firestore.js`);
+const { getStorage } = await import(`${FB_SDK}/firebase-storage.js`);
 
 const firebaseConfig = {
   apiKey: "AIzaSyA6RiB-bqTR3on_KpIRARLm0W3SWeYWaz0",
@@ -21,10 +25,10 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// Login accounts (create both in Firebase Console → Authentication → Users).
+// Login accounts (created in Firebase Console → Authentication → Users).
 // These addresses never receive email; they are just usernames.
 //  - FRIENDS_EMAIL: shared account. Its password is the one you give to friends. Can only view.
-//  - OWNER_EMAIL:   your own account, with a different password. Can post, edit and delete.
+//  - OWNER_EMAIL:   your own account, with a different password. Can add, edit and delete.
 // If you change OWNER_EMAIL, change it in firestore.rules and storage.rules too.
 export const FRIENDS_EMAIL = "friends@wenzuoweb.firebaseapp.com";
 export const OWNER_EMAIL = "owner@wenzuoweb.firebaseapp.com";

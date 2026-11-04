@@ -3,471 +3,81 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
   <title>Lifestyle · Wenzuo Xia</title>
   <link rel="icon" href="data:,">
-  <style>
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f5f5f5;
-    }
-
-    nav {
-      position: sticky;
-      top: 0;
-      background: white;
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      padding: 12px 0;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-      z-index: 10;
-    }
-    nav button {
-      background: none;
-      border: none;
-      font-weight: bold;
-      font-size: 1rem;
-      color: #333;
-      cursor: pointer;
-      padding: 4px 8px;
-      border-bottom: 2px solid transparent;
-    }
-    nav button.active { border-bottom-color: #e91e63; }
-    nav .small { font-weight: normal; font-size: 0.85rem; color: #888; }
-
-    .view-section {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 8px;
-      padding: 10px;
-    }
-    .view-section[hidden] { display: none; }
-    #post { display: block; max-width: 480px; margin: 0 auto; }
-    #post[hidden] { display: none; }
-
-    .status {
-      grid-column: 1 / -1;
-      text-align: center;
-      color: #888;
-      padding: 40px 10px;
-      font-size: 0.9rem;
-    }
-
-    .post {
-      background: white;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-      display: flex;
-      flex-direction: column;
-    }
-    .slides {
-      position: relative;
-      overflow: hidden;
-      aspect-ratio: 1 / 1;
-      background: #eee;
-      cursor: pointer;
-    }
-    .slider {
-      display: flex;
-      height: 100%;
-      transition: transform 0.3s ease;
-    }
-    .slider > * {
-      flex: 0 0 100%;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-    .arrow {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      z-index: 2;
-      border: none;
-      border-radius: 50%;
-      width: 26px;
-      height: 26px;
-      background: rgba(255,255,255,0.8);
-      cursor: pointer;
-      font-size: 0.8rem;
-    }
-    .arrow.left { left: 5px; }
-    .arrow.right { right: 5px; }
-    .count {
-      position: absolute;
-      bottom: 6px;
-      right: 6px;
-      z-index: 2;
-      background: rgba(0,0,0,0.5);
-      color: white;
-      font-size: 0.65rem;
-      padding: 2px 6px;
-      border-radius: 10px;
-    }
-
-    .post-footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 4px 6px;
-    }
-    .post-footer p {
-      font-size: 0.75rem;
-      margin: 0;
-      color: #333;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .like {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 1rem;
-      padding: 2px;
-      flex-shrink: 0;
-    }
-
-    form input, form textarea, form button {
-      margin: 8px 0;
-      padding: 10px;
-      width: 100%;
-      box-sizing: border-box;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      font-family: inherit;
-    }
-    form textarea { min-height: 80px; resize: vertical; }
-    form button {
-      background: #e91e63;
-      color: white;
-      border: none;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    form button:disabled { opacity: 0.6; cursor: wait; }
-    #uploadStatus { font-size: 0.85rem; color: #666; text-align: center; }
-
-    /* Full-screen view of one post */
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.88);
-      z-index: 100;
-      overflow-y: auto;
-      padding: 20px;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-    }
-    .modal img, .modal video {
-      max-width: min(90vw, 900px);
-      max-height: 80vh;
-      border-radius: 6px;
-    }
-    .modal p {
-      color: #fff;
-      max-width: 700px;
-      white-space: pre-wrap;
-      text-align: center;
-    }
-    .modal .date { color: #aaa; font-size: 0.8rem; margin: 0; }
-    .modal-actions { display: flex; gap: 10px; padding-bottom: 20px; }
-    .modal-actions button {
-      background: white;
-      border: none;
-      border-radius: 6px;
-      padding: 8px 16px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    .modal-actions .danger { color: #e53935; }
-  </style>
+  <link rel="stylesheet" href="lifestyle.css">
 </head>
 <body>
-  <nav>
-    <button data-tab="home" class="active">🏠 Home</button>
-    <button data-tab="post" id="postTab" hidden>➕ Post</button>
-    <button data-tab="likes">❤️ Likes</button>
-    <button id="logoutBtn" class="small">Log out</button>
-  </nav>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html">Wenzuo Xia<small>LIFE ARCHIVE</small></a>
+      <nav class="tabs">
+        <button class="tab active" data-view="archive">Archive</button>
+        <button class="tab" data-view="map">Map</button>
+        <button class="tab" data-view="add" id="addTab" hidden>+ Add</button>
+        <button class="tab quiet" id="logoutBtn">Log out</button>
+      </nav>
+    </div>
+  </header>
 
-  <section id="home" class="view-section">
-    <div class="status">Loading…</div>
-  </section>
+  <main>
+    <!-- ARCHIVE -->
+    <section id="archiveView">
+      <p class="stats" id="stats">Loading…</p>
+      <div class="filters">
+        <input class="field search" id="q" type="search" placeholder="Search text, tags, places…">
+        <select class="field" id="year"><option value="">All years</option></select>
+        <select class="field" id="category"><option value="">All categories</option></select>
+        <label class="toggle"><input type="checkbox" id="savedOnly"> ★ Saved</label>
+      </div>
+      <div class="chips" id="tagChips"></div>
+      <div id="timeline"></div>
+    </section>
 
-  <section id="post" class="view-section" hidden>
-    <form id="postForm">
-      <textarea id="postText" placeholder="Write something..."></textarea>
-      <input type="file" id="postMedia" multiple accept="image/*,video/*">
-      <button type="submit" id="uploadBtn">Upload</button>
-      <div id="uploadStatus"></div>
-    </form>
-  </section>
+    <!-- MAP -->
+    <section id="mapView" hidden>
+      <div id="map"></div>
+    </section>
 
-  <section id="likes" class="view-section" hidden></section>
+    <!-- ADD (owner only) -->
+    <section id="addView" class="add" hidden>
+      <h2>Add to the archive</h2>
+      <p class="hint">
+        Pick photos and videos. Dates and places are read from the photos when they have them,
+        and photos from the same day become one entry. You can change anything before uploading.
+        Photos are shrunk for the website — keep your originals in iCloud.
+      </p>
 
-  <script type="module">
-    import { auth, db, storage, isOwner } from "./firebase-config.js";
-    import { onAuthStateChanged, signOut }
-      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { collection, addDoc, getDocs, query, orderBy, doc, updateDoc, deleteDoc }
-      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-    import { ref, uploadBytes, getDownloadURL, deleteObject }
-      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+      <label class="drop" id="drop">
+        <input type="file" id="files" multiple accept="image/*,video/*">
+        <span id="dropText">Tap to choose files, or drop them here</span>
+      </label>
 
-    let posts = [];      // [{ id, text, files: [{ type, url, path? }], createdAt }]
-    let owner = false;
+      <div class="row">
+        <label>Category for all
+          <select class="field" id="bulkCategory"></select>
+        </label>
+        <label>Tags for all (comma separated)
+          <input class="field" id="bulkTags" placeholder="e.g. summer, nyc">
+        </label>
+      </div>
+      <div class="row">
+        <label class="toggle"><input type="checkbox" id="groupByDay" checked> Same day → one entry</label>
+        <label class="toggle"><input type="checkbox" id="autoAi" checked> ✨ AI fills in title, tags and category</label>
+      </div>
 
-    // ---------- Likes: remembered on this device only ----------
-    const LIKES_KEY = 'lifestyle-likes';
-    function getLikes() {
-      try { return new Set(JSON.parse(localStorage.getItem(LIKES_KEY) || '[]')); }
-      catch { return new Set(); }
-    }
-    function toggleLike(id) {
-      const likes = getLikes();
-      likes.has(id) ? likes.delete(id) : likes.add(id);
-      try { localStorage.setItem(LIKES_KEY, JSON.stringify([...likes])); } catch {}
-    }
+      <div class="groups" id="groups"></div>
 
-    // ---------- Tabs ----------
-    function showSection(id) {
-      document.querySelectorAll('section').forEach(s => (s.hidden = s.id !== id));
-      document.querySelectorAll('nav [data-tab]').forEach(b =>
-        b.classList.toggle('active', b.dataset.tab === id));
-      if (id === 'home') render('home', posts, 'No posts yet.');
-      if (id === 'likes') {
-        const likes = getLikes();
-        render('likes', posts.filter(p => likes.has(p.id)), 'Tap ♡ on a post to save it here.');
-      }
-    }
-    document.querySelectorAll('nav [data-tab]').forEach(b =>
-      b.addEventListener('click', () => showSection(b.dataset.tab)));
+      <div class="row" id="uploadRow" hidden>
+        <button class="btn primary" id="uploadBtn">Upload all</button>
+        <button class="btn" id="clearBtn">Clear</button>
+      </div>
+      <div class="progress" id="progress"></div>
+      <div class="bar" id="barWrap" hidden><i id="bar"></i></div>
+    </section>
+  </main>
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-      await signOut(auth);
-      window.location.replace('index.html');
-    });
-
-    // ---------- Rendering ----------
-    function mediaEl(file, { controls = false } = {}) {
-      const el = document.createElement(file.type === 'video' ? 'video' : 'img');
-      el.src = file.url;
-      if (file.type === 'video') {
-        el.controls = controls;
-        el.muted = !controls;
-        el.playsInline = true;
-        el.preload = 'metadata';
-      } else {
-        el.loading = 'lazy';
-        el.alt = '';
-      }
-      return el;
-    }
-
-    function render(sectionId, list, emptyText) {
-      const section = document.getElementById(sectionId);
-      section.innerHTML = '';
-      if (list.length === 0) {
-        const s = document.createElement('div');
-        s.className = 'status';
-        s.textContent = emptyText;
-        section.appendChild(s);
-        return;
-      }
-      list.forEach(p => section.appendChild(createPostElement(p, sectionId)));
-    }
-
-    function createPostElement(post, sectionId) {
-      const card = document.createElement('div');
-      card.className = 'post';
-
-      const slides = document.createElement('div');
-      slides.className = 'slides';
-      const slider = document.createElement('div');
-      slider.className = 'slider';
-      (post.files || []).forEach(f => slider.appendChild(mediaEl(f)));
-      slides.appendChild(slider);
-      slides.addEventListener('click', () => openModal(post));
-
-      const total = (post.files || []).length;
-      if (total > 1) {
-        let i = 0;
-        const count = document.createElement('span');
-        count.className = 'count';
-        const go = (d) => (e) => {
-          e.stopPropagation();
-          i = Math.max(0, Math.min(total - 1, i + d));
-          slider.style.transform = `translateX(-${i * 100}%)`;
-          count.textContent = `${i + 1}/${total}`;
-        };
-        const left = document.createElement('button');
-        left.className = 'arrow left'; left.textContent = '‹'; left.onclick = go(-1);
-        const right = document.createElement('button');
-        right.className = 'arrow right'; right.textContent = '›'; right.onclick = go(1);
-        count.textContent = `1/${total}`;
-        slides.append(left, right, count);
-      }
-
-      const footer = document.createElement('div');
-      footer.className = 'post-footer';
-      const text = document.createElement('p');
-      text.textContent = post.text || '';
-      const like = document.createElement('button');
-      like.className = 'like';
-      const paint = () => (like.textContent = getLikes().has(post.id) ? '❤️' : '♡');
-      paint();
-      like.onclick = () => {
-        toggleLike(post.id);
-        paint();
-        if (sectionId === 'likes') showSection('likes');
-      };
-      footer.append(text, like);
-
-      card.append(slides, footer);
-      return card;
-    }
-
-    function openModal(post) {
-      const modal = document.createElement('div');
-      modal.className = 'modal';
-      const close = () => { modal.remove(); document.removeEventListener('keydown', onKey); };
-      const onKey = (e) => { if (e.key === 'Escape') close(); };
-      document.addEventListener('keydown', onKey);
-      modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
-
-      (post.files || []).forEach(f => modal.appendChild(mediaEl(f, { controls: true })));
-
-      const desc = document.createElement('p');
-      desc.textContent = post.text || '';
-      modal.appendChild(desc);
-
-      if (post.createdAt) {
-        const date = document.createElement('p');
-        date.className = 'date';
-        date.textContent = new Date(post.createdAt).toLocaleDateString();
-        modal.appendChild(date);
-      }
-
-      const actions = document.createElement('div');
-      actions.className = 'modal-actions';
-
-      if (owner) {
-        const editBtn = document.createElement('button');
-        editBtn.textContent = 'Edit';
-        editBtn.onclick = async () => {
-          const newText = prompt('Edit your text:', post.text || '');
-          if (newText === null) return;
-          try {
-            await updateDoc(doc(db, 'posts', post.id), { text: newText });
-            post.text = newText;
-            desc.textContent = newText;
-            showSection('home');
-          } catch (err) {
-            console.error(err);
-            alert('Could not save the edit.');
-          }
-        };
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.textContent = 'Delete';
-        deleteBtn.className = 'danger';
-        deleteBtn.onclick = async () => {
-          if (!confirm('Delete this post for good?')) return;
-          try {
-            await deleteDoc(doc(db, 'posts', post.id));
-            // Remove the uploaded files too. Older posts only stored the URL,
-            // which ref() also accepts.
-            await Promise.allSettled((post.files || []).map(f =>
-              deleteObject(ref(storage, f.path || f.url))));
-            posts = posts.filter(p => p.id !== post.id);
-            close();
-            showSection('home');
-          } catch (err) {
-            console.error(err);
-            alert('Could not delete the post.');
-          }
-        };
-        actions.append(editBtn, deleteBtn);
-      }
-
-      const closeBtn = document.createElement('button');
-      closeBtn.textContent = 'Close';
-      closeBtn.onclick = close;
-      actions.appendChild(closeBtn);
-
-      modal.appendChild(actions);
-      document.body.appendChild(modal);
-    }
-
-    // ---------- Data ----------
-    async function loadPosts() {
-      const snap = await getDocs(query(collection(db, 'posts'), orderBy('createdAt', 'desc')));
-      posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      showSection('home');
-    }
-
-    document.getElementById('postForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const text = document.getElementById('postText').value.trim();
-      const files = Array.from(document.getElementById('postMedia').files);
-      const status = document.getElementById('uploadStatus');
-      const btn = document.getElementById('uploadBtn');
-      if (files.length === 0) { status.textContent = 'Pick at least one photo or video.'; return; }
-
-      btn.disabled = true;
-      try {
-        const uploaded = [];
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          status.textContent = `Uploading ${i + 1} of ${files.length}…`;
-          const path = `posts/${Date.now()}-${file.name}`;
-          const snapshot = await uploadBytes(ref(storage, path), file, { contentType: file.type });
-          uploaded.push({
-            type: file.type.startsWith('video') ? 'video' : 'image',
-            url: await getDownloadURL(snapshot.ref),
-            path,
-          });
-        }
-        await addDoc(collection(db, 'posts'), {
-          text,
-          files: uploaded,
-          createdAt: new Date().toISOString(),
-        });
-        e.target.reset();
-        status.textContent = '';
-        await loadPosts();
-      } catch (err) {
-        console.error('Upload failed:', err);
-        status.textContent = 'Upload failed: ' + (err.code || err.message);
-      } finally {
-        btn.disabled = false;
-      }
-    });
-
-    // ---------- Gate: only signed-in visitors see anything ----------
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        window.location.replace('password.html');
-        return;
-      }
-      owner = isOwner(user);
-      document.getElementById('postTab').hidden = !owner;
-      try {
-        await loadPosts();
-      } catch (err) {
-        console.error(err);
-        document.getElementById('home').innerHTML =
-          '<div class="status">Could not load posts.</div>';
-      }
-    });
-  </script>
+  <script type="module" src="lifestyle.js"></script>
 </body>
 </html>
