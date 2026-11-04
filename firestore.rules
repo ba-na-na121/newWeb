@@ -1,8 +1,23 @@
 rules_version = '2';
+
+// Lifestyle posts:
+//  - anyone signed in (the shared friends account or you) can read
+//  - only the owner account can create, edit or delete
+// Everything else in the database is closed.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isOwner() {
+      return request.auth != null
+        && request.auth.token.email == "owner@wenzuoweb.firebaseapp.com";
+    }
+
+    match /posts/{postId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isOwner();
+    }
+
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

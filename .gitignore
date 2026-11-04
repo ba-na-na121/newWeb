@@ -67,3 +67,7 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# macOS / Windows junk
+.DS_Store
+Thumbs.db
