@@ -34,3 +34,28 @@ export const FRIENDS_EMAIL = "friends@wenzuoweb.firebaseapp.com";
 export const OWNER_EMAIL = "owner@wenzuoweb.firebaseapp.com";
 
 export const isOwner = (user) => !!user && user.email === OWNER_EMAIL;
+
+// App Check (reCAPTCHA Enterprise) proves that AI requests really come from this website,
+// so nobody else can spend the project's Gemini quota with the public config above.
+// Paste the reCAPTCHA Enterprise key ID here. It is public by design and safe to commit.
+export const APP_CHECK_SITE_KEY = "6LchkRAuAAAAAAFzhIZZ65jHbDfBTpI8_kIylsfe";
+
+const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
+let appCheckPromise = null;
+
+// Started only when the AI is first used, so other pages never load reCAPTCHA.
+export function ensureAppCheck() {
+  appCheckPromise ||= (async () => {
+    if (!APP_CHECK_SITE_KEY) throw new Error('App Check is not set up: APP_CHECK_SITE_KEY in firebase-config.js is empty.');
+    const { initializeAppCheck, ReCaptchaEnterpriseProvider } = await import(`${FB_SDK}/firebase-app-check.js`);
+    // On your own computer (npx serve) reCAPTCHA can't vouch for "localhost". Instead the SDK prints a
+    // debug token in the browser console (F12); add it once in Firebase → App Check → Manage debug tokens.
+    if (isLocal) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    return initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY),
+      isTokenAutoRefreshEnabled: true,
+    });
+  })();
+  appCheckPromise.catch(() => { appCheckPromise = null; }); // allow a retry after fixing the setup
+  return appCheckPromise;
+}

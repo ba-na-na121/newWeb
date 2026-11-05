@@ -339,6 +339,11 @@ main { max-width: 1200px; margin: 0 auto; padding: 16px 20px 80px; }
   max-width: calc(100% - 32px);
 }
 
+/* reCAPTCHA (used for App Check) — badge hidden; the required notice is on the Add page instead */
+.grecaptcha-badge { visibility: hidden; }
+.legal { font-size: 11px; color: var(--muted); margin-top: 28px; }
+.legal a { color: var(--muted); }
+
 /* ---------- Phones ---------- */
 @media (max-width: 640px) {
   .topbar-inner { padding: 10px 14px; gap: 8px; flex-wrap: wrap; }

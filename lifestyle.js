@@ -2,7 +2,7 @@
 // Data lives in Firestore (collection "posts") and Firebase Storage (folder "posts/").
 // Friends (shared account) can browse; only the owner account can add, edit and delete.
 
-import { app, auth, db, storage, isOwner, FB_SDK } from "./firebase-config.js";
+import { app, auth, db, storage, isOwner, FB_SDK, ensureAppCheck } from "./firebase-config.js";
 
 const { onAuthStateChanged, signOut } = await import(`${FB_SDK}/firebase-auth.js`);
 const { collection, addDoc, getDocs, doc, updateDoc, deleteDoc } =
@@ -588,6 +588,7 @@ function groupEl(g) {
 let modelPromise = null;
 async function getModel() {
   modelPromise ||= (async () => {
+    await ensureAppCheck(); // must be running before the AI client is created
     const { getAI, getGenerativeModel, GoogleAIBackend, Schema } = await import(`${FB_SDK}/firebase-ai.js`);
     const ai = getAI(app, { backend: new GoogleAIBackend() });
     return getGenerativeModel(ai, {
@@ -656,7 +657,15 @@ async function suggest(g, { auto = false } = {}) {
     g.aiDone = true;
   } catch (err) {
     console.error('AI failed:', err);
-    toast('AI could not help this time: ' + (err.code || err.message || err).toString().slice(0, 120), 5000);
+    modelPromise = null; // try a fresh setup next time
+    const msg = String(err?.message || err);
+    const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+    toast(
+      /APP_CHECK_SITE_KEY/.test(msg) ? 'AI is off: the App Check key is not set yet.'
+      : /App Check/i.test(msg) && local ? 'AI blocked on this computer: add the App Check debug token from the console (F12) in Firebase → App Check.'
+      : /App Check/i.test(msg) ? 'AI blocked by App Check. Check the reCAPTCHA key and its allowed domains.'
+      : 'AI could not help this time: ' + (err?.code || msg).slice(0, 120),
+      7000);
   } finally {
     g.aiBusy = false;
     renderGroups();
