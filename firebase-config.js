@@ -38,7 +38,7 @@ export const isOwner = (user) => !!user && user.email === OWNER_EMAIL;
 // App Check (reCAPTCHA Enterprise) proves that AI requests really come from this website,
 // so nobody else can spend the project's Gemini quota with the public config above.
 // Paste the reCAPTCHA Enterprise key ID here. It is public by design and safe to commit.
-export const APP_CHECK_SITE_KEY = "6LchkRAuAAAAAAFzhIZZ65jHbDfBTpI8_kIylsfe";
+export const APP_CHECK_SITE_KEY = "6LcnHBEuAAAAAKTn7gpRcPgddl1Ujd1dhxA5g7QC";
 
 const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
 let appCheckPromise = null;
