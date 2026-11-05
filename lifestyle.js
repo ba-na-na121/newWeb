@@ -2,7 +2,7 @@
 // Data lives in Firestore (collection "posts") and Firebase Storage (folder "posts/").
 // Friends (shared account) can browse; only the owner account can add, edit and delete.
 
-import { app, auth, db, storage, isOwner, FB_SDK, ensureAppCheck } from "./firebase-config.js";
+import { auth, db, storage, isOwner, FB_SDK, getAiApp } from "./firebase-config.js";
 
 const { onAuthStateChanged, signOut } = await import(`${FB_SDK}/firebase-auth.js`);
 const { collection, addDoc, getDocs, doc, updateDoc, deleteDoc } =
@@ -52,6 +52,23 @@ function toast(msg, ms = 3000) {
   document.body.append(t);
   setTimeout(() => t.remove(), ms);
 }
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function withTimeout(promise, ms, what) {
+  let t;
+  return Promise.race([promise, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(`${what} (${ms / 1000}s)`)), ms); })])
+    .finally(() => clearTimeout(t));
+}
+
+// On-screen log for the Add page, so problems on a phone (no developer tools there) can be seen and screenshotted.
+const logStart = Date.now();
+function logLine(msg) {
+  const el = document.getElementById('log');
+  if (!el) return;
+  const t = ((Date.now() - logStart) / 1000).toFixed(1).padStart(6);
+  el.textContent = (el.textContent + `${t}s  ${msg}\n`).split('\n').slice(-300).join('\n');
+}
+const mb = (n) => `${(n / 1e6).toFixed(1)} MB`;
 
 // ---------- Saved (★) — remembered on this device ----------
 const SAVED_KEY = 'lifestyle-likes';
@@ -372,11 +389,14 @@ function videoFrame(file) {
     const v = document.createElement('video');
     v.muted = true;
     v.playsInline = true;
-    v.preload = 'auto';
-    const finish = (blob) => { clearTimeout(timer); URL.revokeObjectURL(url); resolve(blob); };
-    const timer = setTimeout(() => finish(null), 10000);
+    v.setAttribute('playsinline', '');
+    v.preload = 'metadata';
+    let done = false;
+    const finish = (blob) => { if (done) return; done = true; clearTimeout(timer); v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url); resolve(blob); };
+    const timer = setTimeout(() => finish(null), 8000);
     v.addEventListener('error', () => finish(null));
-    v.addEventListener('loadeddata', () => { v.currentTime = Math.min(1, (v.duration || 2) / 2); });
+    // iPhones don't load video data until asked, so seek as soon as the duration is known (seeking loads it).
+    v.addEventListener('loadedmetadata', () => { v.currentTime = Math.min(1, (v.duration || 2) / 2); }, { once: true });
     v.addEventListener('seeked', () => {
       if (!v.videoWidth) return finish(null);
       const s = Math.min(1, THUMB_MAX / Math.max(v.videoWidth, v.videoHeight));
@@ -644,20 +664,28 @@ async function addFiles(files) {
   if (tooBig.length) toast(`${tooBig.length} video(s) over 4 GB skipped. Trim them first.`, 5000);
   files = files.filter(f => !tooBig.includes(f));
 
-  const items = [];
-  for (const [n, file] of files.entries()) {
-    $('#progress').textContent = `Reading ${n + 1} of ${files.length}…`;
+  // Read two files at a time and show each one as soon as it's ready, instead of waiting for all of them.
+  let readCount = 0;
+  $('#progress').textContent = `Reading 0 of ${files.length}…`;
+  await pool(files, 2, async (file) => {
+    const t0 = Date.now();
     const meta = await readMeta(file);
     const isImage = file.type.startsWith('image/') || isHeic(file);
     const shrunk = isImage ? await shrink(file) : null;
     const frame = file.type.startsWith('video/') ? await videoFrame(file) : null;
+    // Videos preview as their cover frame: iPhones show a <video> as a black box until it's played.
     const preview = shrunk ? URL.createObjectURL(shrunk.thumb)
-      : file.type.startsWith('video/') ? URL.createObjectURL(file) : null;
-    items.push({ file, meta, shrunk, frame, preview });
-  }
-  pendingItems.push(...items);
+      : frame ? URL.createObjectURL(frame)
+        : file.type.startsWith('video/') ? URL.createObjectURL(file) : null;
+    pendingItems.push({ file, meta, shrunk, frame, preview });
+    readCount++;
+    $('#progress').textContent = readCount < files.length ? `Reading ${readCount} of ${files.length}…` : '';
+    logLine(`read ${file.name} · ${file.type || 'no type'} · ${mb(file.size)} · date ${meta.date} from ${meta.dateSource}` +
+      ` · ${meta.lat != null ? 'GPS ✓' : 'no GPS'} · ${shrunk ? 'photo ✓' : frame ? 'video cover ✓' : isImage ? 'photo ✕ (could not open)' : 'video cover ✕'}` +
+      ` · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    regroup();
+  });
   $('#progress').textContent = '';
-  regroup();
   if ($('#autoAi').checked) groups.filter(g => !g.aiDone).forEach(g => suggest(g, { auto: true }));
 }
 
@@ -702,6 +730,9 @@ function groupEl(g) {
   };
   const heic = g.items.filter(i => isHeic(i.file) && !i.shrunk).length; // HEIC we couldn't decode
   const dateGuessed = g.items.every(i => i.meta.dateSource === 'file');
+  // iPhones remove location from photos picked in a web page unless it's switched on in the picker.
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const noPlace = isIOS && g.items.some(i => i.shrunk) && g.items.every(i => i.meta.lat == null);
   return h('div', { class: 'group' },
     h('div', { class: 'group-head' },
       bind(h('input', { class: 'field', type: 'date', value: g.date }), 'date'),
@@ -716,6 +747,7 @@ function groupEl(g) {
         onclick: () => { groups = groups.filter(x => x !== g); renderGroups(); },
       })),
     h('div', { class: 'thumbs' }, g.items.map(thumbWithProgress)),
+    noPlace && h('p', { class: 'hint', text: 'No location: iPhone leaves it out by default. In the photo picker, tap “Options” at the top and turn on Location, then pick the photos again.' }),
     dateGuessed && h('p', { class: 'hint warn', text: "⚠ Couldn't find when this was taken — the date is just the file's date. Please check it." }),
     heic > 0 && h('p', { class: 'hint', text: `${heic} HEIC photo(s) couldn't be opened. Try again, or export them from iCloud as JPEG (“Most Compatible”).` }),
     bind(h('input', { class: 'field', value: g.title, placeholder: 'Title', style: 'width:100%;margin-bottom:8px' }), 'title'),
@@ -732,9 +764,9 @@ function groupEl(g) {
 let modelPromise = null;
 async function getModel() {
   modelPromise ||= (async () => {
-    await ensureAppCheck(); // must be running before the AI client is created
+    const aiApp = await withTimeout(getAiApp(), 20000, 'App Check (reCAPTCHA) did not answer');
     const { getAI, getGenerativeModel, GoogleAIBackend, Schema } = await import(`${FB_SDK}/firebase-ai.js`);
-    const ai = getAI(app, { backend: new GoogleAIBackend() });
+    const ai = getAI(aiApp, { backend: new GoogleAIBackend() });
     return getGenerativeModel(ai, {
       model: AI_MODEL,
       generationConfig: {
@@ -788,7 +820,7 @@ async function suggest(g, { auto = false } = {}) {
     ].filter(Boolean).join('\n');
     const parts = [prompt, ...await Promise.all(images.map(async b =>
       ({ inlineData: { mimeType: b.type, data: await blobToBase64(b) } })))];
-    const result = await model.generateContent(parts);
+    const result = await withTimeout(model.generateContent(parts), 45000, 'AI took too long');
     const out = JSON.parse(result.response.text());
     if (!g.title && out.title) g.title = out.title.trim();
     if (!g.text && out.caption) g.text = out.caption.trim();
@@ -799,8 +831,10 @@ async function suggest(g, { auto = false } = {}) {
       g.place = { ...(g.place || {}), name: out.place.trim() };
     }
     g.aiDone = true;
+    logLine(`AI ✓ ${g.date}: "${g.title}"`);
   } catch (err) {
     console.error('AI failed:', err);
+    logLine(`AI ✕ ${g.date}: ${err?.code || ''} ${String(err?.message || err).slice(0, 160)}`);
     modelPromise = null; // try a fresh setup next time
     const msg = String(err?.message || err);
     const local = ['localhost', '127.0.0.1'].includes(location.hostname);
@@ -819,7 +853,7 @@ async function suggest(g, { auto = false } = {}) {
 // ---------- Per-file progress ----------
 // Each thumbnail carries its own bar and label: waiting → compressing → uploading → ✓ (or failed).
 function thumbWithProgress(i) {
-  const media = i.file.type.startsWith('video/') ? h('video', { src: i.preview, muted: true, preload: 'metadata' })
+  const media = i.file.type.startsWith('video/') && !i.frame ? h('video', { src: i.preview, muted: true, preload: 'metadata' })
     : i.preview ? h('img', { src: i.preview, alt: '' })
       : h('div', { class: 'heic', text: 'HEIC' });
   const bar = h('i', { class: 'tbar' });
@@ -868,16 +902,63 @@ const oneVideoAtATime = (fn) => {
 };
 
 // ---------- Upload ----------
-function putFile(path, blob, onBytes) {
+const STALL_MS = 30000;          // no progress for this long → cancel and try that file again
+const active = new Set();        // uploads in flight: { task, lastChange }
+
+// One attempt. Progress made by a failed attempt is taken back off the bars.
+function putFileOnce(path, blob, onBytes) {
   return new Promise((resolve, reject) => {
     const task = uploadBytesResumable(ref(storage, path), blob, { contentType: blob.type || 'application/octet-stream' });
+    const entry = { task, lastChange: Date.now(), stalled: false };
+    active.add(entry);
     let last = 0;
+    const watchdog = setInterval(() => {
+      if (Date.now() - entry.lastChange > STALL_MS) { entry.stalled = true; task.cancel(); }
+    }, 3000);
+    const end = () => { clearInterval(watchdog); active.delete(entry); };
     task.on('state_changed',
-      (s) => { onBytes(s.bytesTransferred - last); last = s.bytesTransferred; },
-      reject,
-      async () => resolve(await getDownloadURL(task.snapshot.ref)));
+      (s) => {
+        if (s.bytesTransferred !== last) { onBytes(s.bytesTransferred - last); last = s.bytesTransferred; entry.lastChange = Date.now(); }
+      },
+      (err) => {
+        end();
+        onBytes(-last);
+        if (entry.stalled) err = Object.assign(new Error(`no progress for ${STALL_MS / 1000}s`), { code: 'stalled' });
+        reject(err);
+      },
+      async () => {
+        end();
+        try { resolve(await getDownloadURL(task.snapshot.ref)); } catch (e) { reject(e); }
+      });
   });
 }
+
+// Up to 4 attempts per file, with a short pause between them. Permission errors are not retried.
+async function putFile(path, blob, onBytes, label = path) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await putFileOnce(path, blob, onBytes);
+    } catch (err) {
+      const why = err.code === 'stalled' ? err.message : (err.code || err.message);
+      if (attempt >= 4 || err.code === 'storage/unauthorized' || err.code === 'storage/unauthenticated') {
+        logLine(`✕ ${label}: ${why} (gave up after ${attempt} tries)`);
+        throw err;
+      }
+      logLine(`↻ ${label}: ${why} — trying again (${attempt + 1}/4)`);
+      await sleep(1500 * attempt);
+    }
+  }
+}
+
+// Phones pause web pages that are in the background. When the page comes back, restart any upload that
+// stopped moving instead of waiting for the stall timer.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !active.size) return;
+  logLine(`page visible again — checking ${active.size} upload(s)`);
+  for (const entry of active) {
+    if (Date.now() - entry.lastChange > 4000) { entry.stalled = true; entry.task.cancel(); }
+  }
+});
 
 const safeName = (name) => name.replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_').slice(0, 40) || 'file';
 const extFor = (type) => ({ 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jpg' }[type] || 'bin');
@@ -901,7 +982,8 @@ $('#uploadBtn').addEventListener('click', async () => {
   const paintTotal = () => { $('#bar').style.width = `${Math.min(100, (sent / total) * 100).toFixed(1)}%`; };
   const skipped = [];
   items.forEach(i => { if (i.record === undefined) setItem(i, 'wait'); });
-  $('#progress').textContent = `Uploading ${items.length} file(s)… keep this page open.`;
+  $('#progress').textContent = `Uploading ${items.length} file(s)… if you switch apps it will continue when you come back.`;
+  logLine(`upload started: ${items.filter(i => i.record === undefined).length} file(s), ${mb(total)}`);
 
   // Upload one file (plus its thumbnail). Stores the result on the item, so a retry skips finished files.
   const uploadItem = async (it) => {
@@ -920,8 +1002,8 @@ $('#uploadBtn').addEventListener('click', async () => {
         const path = `${base}.${extFor(it.shrunk.full.type)}`;
         const thumbPath = `${base}_t.${extFor(it.shrunk.thumb.type)}`;
         const [url, thumb] = await Promise.all([
-          putFile(path, it.shrunk.full, onBytes),
-          putFile(thumbPath, it.shrunk.thumb, onBytes),
+          putFile(path, it.shrunk.full, onBytes, it.file.name),
+          putFile(thumbPath, it.shrunk.thumb, onBytes, `${it.file.name} (thumbnail)`),
         ]);
         it.record = { type: 'image', url, path, thumb, thumbPath };
       } else if (it.file.type.startsWith('video/')) {
@@ -930,6 +1012,7 @@ $('#uploadBtn').addEventListener('click', async () => {
         const blob = small || it.file;
         if (small) { total -= it.file.size - small.size; itemTotal -= it.file.size - small.size; paintTotal(); }
         else toast(`Couldn't compress ${it.file.name} in this browser — uploading the original.`, 4000);
+        logLine(small ? `compressed ${it.file.name}: ${mb(it.file.size)} → ${mb(small.size)}` : `could not compress ${it.file.name} — sending original ${mb(it.file.size)}`);
         if (blob.size > MAX_VIDEO_MB * 1e6) {
           skipped.push(it.file.name);
           it.record = null;
@@ -941,17 +1024,18 @@ $('#uploadBtn').addEventListener('click', async () => {
         const path = base + ext;
         const thumbPath = it.frame ? `${base}_t.jpg` : null;  // cover image for the grid
         const [url, thumb] = await Promise.all([
-          putFile(path, blob, onBytes),
-          thumbPath ? putFile(thumbPath, it.frame, onBytes) : null,
+          putFile(path, blob, onBytes, it.file.name),
+          thumbPath ? putFile(thumbPath, it.frame, onBytes, `${it.file.name} (cover)`) : null,
         ]);
         it.record = thumb ? { type: 'video', url, path, thumb, thumbPath } : { type: 'video', url, path };
       } else {
         setItem(it, 'upload', 0);
         const ext = (it.file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
         const path = base + ext;
-        it.record = { type: 'image', url: await putFile(path, it.file, onBytes), path };
+        it.record = { type: 'image', url: await putFile(path, it.file, onBytes, it.file.name), path };
       }
       setItem(it, 'done');
+      logLine(`✓ ${it.file.name} uploaded`);
     } catch (err) {
       console.error('Upload failed:', it.file.name, err);
       it.error = err;

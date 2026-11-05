@@ -24,6 +24,9 @@ export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+// The SDK normally retries a broken upload silently for up to 10 minutes, which looks like "stuck at 0%".
+// Give up after 1 minute instead; lifestyle.js then retries the file itself and shows what happened.
+storage.maxUploadRetryTime = 60 * 1000;
 
 // Login accounts (created in Firebase Console → Authentication → Users).
 // These addresses never receive email; they are just usernames.
@@ -41,21 +44,23 @@ export const isOwner = (user) => !!user && user.email === OWNER_EMAIL;
 export const APP_CHECK_SITE_KEY = "6LcnHBEuAAAAAKTn7gpRcPgddl1Ujd1dhxA5g7QC";
 
 const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
-let appCheckPromise = null;
+let aiApp = null;
 
+// The AI gets its own Firebase connection with App Check (reCAPTCHA) attached. Keeping it separate means
+// a slow or blocked reCAPTCHA on a phone can never hold up photo uploads or loading the archive.
 // Started only when the AI is first used, so other pages never load reCAPTCHA.
-export function ensureAppCheck() {
-  appCheckPromise ||= (async () => {
-    if (!APP_CHECK_SITE_KEY) throw new Error('App Check is not set up: APP_CHECK_SITE_KEY in firebase-config.js is empty.');
-    const { initializeAppCheck, ReCaptchaEnterpriseProvider } = await import(`${FB_SDK}/firebase-app-check.js`);
-    // On your own computer (npx serve) reCAPTCHA can't vouch for "localhost". Instead the SDK prints a
-    // debug token in the browser console (F12); add it once in Firebase → App Check → Manage debug tokens.
-    if (isLocal) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-    return initializeAppCheck(app, {
-      provider: new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY),
-      isTokenAutoRefreshEnabled: true,
-    });
-  })();
-  appCheckPromise.catch(() => { appCheckPromise = null; }); // allow a retry after fixing the setup
-  return appCheckPromise;
+export async function getAiApp() {
+  if (aiApp) return aiApp;
+  if (!APP_CHECK_SITE_KEY) throw new Error('App Check is not set up: APP_CHECK_SITE_KEY in firebase-config.js is empty.');
+  const { initializeAppCheck, ReCaptchaEnterpriseProvider } = await import(`${FB_SDK}/firebase-app-check.js`);
+  if (aiApp) return aiApp; // another call finished first
+  // On your own computer (npx serve) reCAPTCHA can't vouch for "localhost". Instead the SDK prints a
+  // debug token in the browser console (F12); add it once in Firebase → App Check → Manage debug tokens.
+  if (isLocal) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  const a = initializeApp(firebaseConfig, 'ai');
+  initializeAppCheck(a, {
+    provider: new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY),
+    isTokenAutoRefreshEnabled: true,
+  });
+  return (aiApp = a);
 }
