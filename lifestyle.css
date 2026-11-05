@@ -281,6 +281,24 @@ main { max-width: 1200px; margin: 0 auto; padding: 16px 20px 80px; }
   background: var(--panel-2);
 }
 .thumbs .heic { display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted); }
+
+/* Per-file progress on each thumbnail */
+.tw { position: relative; flex: 0 0 auto; width: 74px; height: 74px; }
+.tw > img, .tw > video, .tw > .heic { width: 74px; height: 74px; object-fit: cover; display: block; }
+.ttrack { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(0, 0, 0, 0.6); display: none; }
+.tbar { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--neon-1), var(--neon-2)); transition: width 0.2s; }
+.tlabel {
+  position: absolute; left: 0; right: 0; bottom: 4px;
+  text-align: center; font-size: 10px; line-height: 14px;
+  background: rgba(0, 0, 0, 0.65); display: none;
+}
+.tw[data-phase] .ttrack, .tw[data-phase] .tlabel { display: block; }
+.tw[data-phase=""] .ttrack, .tw[data-phase=""] .tlabel { display: none; }
+.tw[data-phase="wait"] > :first-child { opacity: 0.5; }
+.tw[data-phase="compress"] .tbar { background: #ffd23d; }
+.tw[data-phase="done"] .tlabel { color: var(--neon-3); }
+.tw[data-phase="error"] .tlabel, .tw[data-phase="skip"] .tlabel { color: #ff5555; }
+.tw[data-phase="error"] .tbar { background: #ff5555; }
 .group textarea { width: 100%; min-height: 54px; resize: vertical; }
 .group .line { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .group .line .field { flex: 1 1 140px; }

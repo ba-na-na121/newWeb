@@ -361,7 +361,7 @@ async function renderMap() {
 
 // ---------- Add: read files, group, upload ----------
 let exifrPromise = null;
-const loadExifr = () => (exifrPromise ||= import('https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.mjs')
+const loadExifr = () => (exifrPromise ||= import('https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.esm.mjs')
   .then(m => m.default).catch(() => null));
 
 // Grab one still frame from a video (about 1 second in) as a small JPEG.
@@ -495,16 +495,83 @@ async function mp4CreationTime(file) {
   return null;
 }
 
+// Pull the raw EXIF (TIFF) block out of a HEIC file. Fallback for HEIC layouts the EXIF library can't walk.
+async function heicTiff(file) {
+  try {
+    const buf = new Uint8Array(await file.slice(0, Math.min(file.size, 1 << 20)).arrayBuffer()); // "meta" sits near the start
+    const dv = new DataView(buf.buffer);
+    const fourcc = (i) => String.fromCharCode(buf[i], buf[i + 1], buf[i + 2], buf[i + 3]);
+    const boxes = function* (s, e) {
+      while (s + 8 <= e) {
+        let size = dv.getUint32(s), hdr = 8;
+        const type = fourcc(s + 4);
+        if (size === 1) { size = Number(dv.getBigUint64(s + 8)); hdr = 16; } else if (size === 0) size = e - s;
+        if (size < hdr) return;
+        yield { type, start: s + hdr, end: Math.min(s + size, e) };
+        s += size;
+      }
+    };
+    const meta = [...boxes(0, buf.length)].find(b => b.type === 'meta');
+    if (!meta) return null;
+    let exifId = null, iloc = null, idat = null;
+    for (const b of boxes(meta.start + 4, meta.end)) {
+      if (b.type === 'iinf') {
+        for (const e of boxes(b.start + 4 + (buf[b.start] === 0 ? 2 : 4), b.end)) {
+          if (e.type !== 'infe') continue;
+          const v = buf[e.start];
+          const id = v >= 3 ? dv.getUint32(e.start + 4) : dv.getUint16(e.start + 4);
+          if (fourcc(e.start + 4 + (v >= 3 ? 4 : 2) + 2) === 'Exif') exifId = id;
+        }
+      } else if (b.type === 'iloc') iloc = b;
+      else if (b.type === 'idat') idat = b;
+    }
+    if (exifId == null || !iloc) return null;
+    const v = buf[iloc.start];
+    let p = iloc.start + 4;
+    const offSize = buf[p] >> 4, lenSize = buf[p] & 15, baseSize = buf[p + 1] >> 4, idxSize = v ? buf[p + 1] & 15 : 0;
+    p += 2;
+    const rd = (n) => { let x = 0; for (let k = 0; k < n; k++) x = x * 256 + buf[p + k]; p += n; return x; };
+    const count = v < 2 ? rd(2) : rd(4);
+    for (let k = 0; k < count; k++) {
+      const id = v < 2 ? rd(2) : rd(4);
+      const method = v ? rd(2) & 15 : 0;
+      rd(2); // data_reference_index
+      const base = rd(baseSize);
+      const extents = rd(2);
+      let first = null;
+      for (let x = 0; x < extents; x++) {
+        if (idxSize) rd(idxSize);
+        const off = rd(offSize), len = rd(lenSize);
+        first ??= { off, len };
+      }
+      if (id !== exifId || !first) continue;
+      const at = (method === 1 && idat ? idat.start : 0) + base + first.off;
+      const data = new Uint8Array(await file.slice(at, at + first.len).arrayBuffer());
+      const isTiff = (i) => (data[i] === 0x49 && data[i + 1] === 0x49 && data[i + 2] === 0x2a) ||
+                            (data[i] === 0x4d && data[i + 1] === 0x4d && data[i + 3] === 0x2a);
+      let t = 4 + new DataView(data.buffer).getUint32(0);
+      if (!isTiff(t)) t = [...Array(Math.min(64, data.length - 4)).keys()].find(isTiff) ?? -1;
+      return t >= 0 ? data.slice(t) : null;
+    }
+  } catch {}
+  return null;
+}
+
 async function readMeta(file) {
   // dateSource: 'photo' / 'video' = read from the file itself; 'file' = only the file's modified time (a guess)
   const meta = { date: localDay(file.lastModified || Date.now()), dateSource: 'file', lat: null, lng: null };
   if (file.type.startsWith('video/')) return { ...meta, ...await readVideoMeta(file) };
-  if (!file.type.startsWith('image/')) return meta;
+  if (!file.type.startsWith('image/') && !isHeic(file)) return meta; // HEIC from Windows can have an empty type
   const exifr = await loadExifr();
   if (!exifr) return meta;
   try {
-    // (exifr's "pick" option is broken in the lite build, so read everything — it's small.)
-    const tags = await exifr.parse(file);
+    // (Full exifr build: it can also read the bare EXIF block pulled out of HEIC files.)
+    let tags = null;
+    try { tags = await exifr.parse(file); } catch {}
+    if (isHeic(file) && !(tags?.DateTimeOriginal || tags?.CreateDate)) {
+      const tiff = await heicTiff(file);
+      if (tiff) tags = await exifr.parse(tiff);
+    }
     const d = tags?.DateTimeOriginal || tags?.CreateDate;
     if (d instanceof Date && !isNaN(d)) { meta.date = localDay(d); meta.dateSource = 'photo'; }
     if (Number.isFinite(tags?.latitude) && Number.isFinite(tags?.longitude)) {
@@ -515,10 +582,26 @@ async function readMeta(file) {
   return meta;
 }
 
-// Shrink an image to a website copy and a thumbnail. Returns null if the browser can't decode it.
+// Decode any photo, including iPhone HEIC. Safari (iPhone, Mac) reads HEIC itself; other browsers
+// get a HEIC decoder (~3 MB) that is only downloaded the first time it's needed.
+let heicPromise = null;
+const loadHeic = () => (heicPromise ||=
+  import('https://cdn.jsdelivr.net/npm/heic-to@1.6.6/dist/heic-to.min.js').catch(() => null));
+
+async function decodeImage(file) {
+  try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch {}
+  if (isHeic(file)) {
+    const lib = await loadHeic();
+    if (lib) { try { return await lib.heicTo({ blob: file, type: 'bitmap' }); } catch {} }
+  }
+  return null;
+}
+
+// Shrink a photo to a website copy and a thumbnail. Returns null if it can't be decoded.
 async function shrink(file) {
   try {
-    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const bmp = await decodeImage(file);
+    if (!bmp) return null;
     const draw = (max, q) => {
       const s = Math.min(1, max / Math.max(bmp.width, bmp.height));
       const c = h('canvas', { width: Math.round(bmp.width * s), height: Math.round(bmp.height * s) });
@@ -561,11 +644,12 @@ async function addFiles(files) {
   if (tooBig.length) toast(`${tooBig.length} video(s) over 4 GB skipped. Trim them first.`, 5000);
   files = files.filter(f => !tooBig.includes(f));
 
-  $('#progress').textContent = `Reading ${files.length} file(s)…`;
   const items = [];
-  for (const file of files) {
+  for (const [n, file] of files.entries()) {
+    $('#progress').textContent = `Reading ${n + 1} of ${files.length}…`;
     const meta = await readMeta(file);
-    const shrunk = file.type.startsWith('image/') && !isHeic(file) ? await shrink(file) : null;
+    const isImage = file.type.startsWith('image/') || isHeic(file);
+    const shrunk = isImage ? await shrink(file) : null;
     const frame = file.type.startsWith('video/') ? await videoFrame(file) : null;
     const preview = shrunk ? URL.createObjectURL(shrunk.thumb)
       : file.type.startsWith('video/') ? URL.createObjectURL(file) : null;
@@ -616,7 +700,7 @@ function groupEl(g) {
     el.addEventListener('input', () => { g[key] = map(el.value); });
     return el;
   };
-  const heic = g.items.filter(i => isHeic(i.file)).length;
+  const heic = g.items.filter(i => isHeic(i.file) && !i.shrunk).length; // HEIC we couldn't decode
   const dateGuessed = g.items.every(i => i.meta.dateSource === 'file');
   return h('div', { class: 'group' },
     h('div', { class: 'group-head' },
@@ -631,12 +715,9 @@ function groupEl(g) {
         class: 'btn small', text: '✕', 'aria-label': 'Remove',
         onclick: () => { groups = groups.filter(x => x !== g); renderGroups(); },
       })),
-    h('div', { class: 'thumbs' }, g.items.map(i =>
-      i.file.type.startsWith('video/') ? h('video', { src: i.preview, muted: true, preload: 'metadata' })
-        : i.preview ? h('img', { src: i.preview, alt: '' })
-          : h('div', { class: 'heic', text: 'HEIC' }))),
+    h('div', { class: 'thumbs' }, g.items.map(thumbWithProgress)),
     dateGuessed && h('p', { class: 'hint warn', text: "⚠ Couldn't find when this was taken — the date is just the file's date. Please check it." }),
-    heic > 0 && h('p', { class: 'hint', text: `${heic} HEIC photo(s): most browsers can't show these. Export them from iCloud as JPEG (“Most Compatible”) first.` }),
+    heic > 0 && h('p', { class: 'hint', text: `${heic} HEIC photo(s) couldn't be opened. Try again, or export them from iCloud as JPEG (“Most Compatible”).` }),
     bind(h('input', { class: 'field', value: g.title, placeholder: 'Title', style: 'width:100%;margin-bottom:8px' }), 'title'),
     bind(h('textarea', { class: 'field', placeholder: 'What happened? (optional)', value: g.text }), 'text'),
     h('div', { class: 'line' },
@@ -735,6 +816,57 @@ async function suggest(g, { auto = false } = {}) {
   }
 }
 
+// ---------- Per-file progress ----------
+// Each thumbnail carries its own bar and label: waiting → compressing → uploading → ✓ (or failed).
+function thumbWithProgress(i) {
+  const media = i.file.type.startsWith('video/') ? h('video', { src: i.preview, muted: true, preload: 'metadata' })
+    : i.preview ? h('img', { src: i.preview, alt: '' })
+      : h('div', { class: 'heic', text: 'HEIC' });
+  const bar = h('i', { class: 'tbar' });
+  const label = h('span', { class: 'tlabel' });
+  const wrap = h('div', { class: 'tw' }, media, h('div', { class: 'ttrack' }, bar), label);
+  i.ui = { wrap, bar, label };
+  paintItem(i);
+  return wrap;
+}
+
+function setItem(i, phase, pct = 0) {
+  i.phase = phase;
+  i.pct = pct;
+  paintItem(i);
+}
+
+function paintItem(i) {
+  if (!i.ui) return;
+  const pct = Math.round((i.pct || 0) * 100);
+  i.ui.wrap.dataset.phase = i.phase || '';
+  i.ui.bar.style.width = `${i.phase === 'done' ? 100 : pct}%`;
+  i.ui.label.textContent = {
+    wait: 'waiting', compress: `compress ${pct}%`, upload: `${pct}%`, done: '✓', error: 'failed', skip: 'too big',
+  }[i.phase] || '';
+}
+
+// Run fn over items with at most `limit` at a time (phones upload faster with a few in parallel).
+async function pool(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const k = next++;
+      out[k] = await fn(items[k], k);
+    }
+  }));
+  return out;
+}
+
+// Video compression is heavy, so only one runs at a time even while photos upload in parallel.
+let videoQueue = Promise.resolve();
+const oneVideoAtATime = (fn) => {
+  const run = videoQueue.then(fn, fn);
+  videoQueue = run.catch(() => {});
+  return run;
+};
+
 // ---------- Upload ----------
 function putFile(path, blob, onBytes) {
   return new Promise((resolve, reject) => {
@@ -756,57 +888,88 @@ $('#uploadBtn').addEventListener('click', async () => {
   btn.disabled = true;
   $('#barWrap').hidden = false;
 
+  // Keep the phone screen on while uploading: iPhones pause uploads when the screen locks.
+  let wakeLock = null;
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+
   const bulkTags = parseTags($('#bulkTags').value);
   const bulkCat = $('#bulkCategory').value;
-  let total = groups.reduce((n, g) => n + g.items.reduce((m, i) =>
-    m + (i.shrunk ? i.shrunk.full.size + i.shrunk.thumb.size : i.file.size + (i.frame?.size || 0)), 0), 0);
+  const items = groups.flatMap(g => g.items);
+  const sizeOf = (i) => i.shrunk ? i.shrunk.full.size + i.shrunk.thumb.size : i.file.size + (i.frame?.size || 0);
+  let total = items.reduce((n, i) => n + (i.record !== undefined ? 0 : sizeOf(i)), 0) || 1;
   let sent = 0;
+  const paintTotal = () => { $('#bar').style.width = `${Math.min(100, (sent / total) * 100).toFixed(1)}%`; };
   const skipped = [];
-  const onBytes = (n) => { sent += n; $('#bar').style.width = `${Math.min(100, (sent / total) * 100).toFixed(1)}%`; };
+  items.forEach(i => { if (i.record === undefined) setItem(i, 'wait'); });
+  $('#progress').textContent = `Uploading ${items.length} file(s)… keep this page open.`;
 
-  const done = [];
-  try {
-    for (let gi = 0; gi < groups.length; gi++) {
-      const g = groups[gi];
-      $('#progress').textContent = `Uploading entry ${gi + 1} of ${groups.length}…`;
-      const files = [];
-      for (const it of g.items) {
-        const base = `posts/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(it.file.name)}`;
-        if (it.shrunk) {
-          const path = `${base}.${extFor(it.shrunk.full.type)}`;
-          const thumbPath = `${base}_t.${extFor(it.shrunk.thumb.type)}`;
-          const url = await putFile(path, it.shrunk.full, onBytes);
-          const thumb = await putFile(thumbPath, it.shrunk.thumb, onBytes);
-          files.push({ type: 'image', url, path, thumb, thumbPath });
-        } else if (it.file.type.startsWith('video/')) {
-          $('#progress').textContent = `Entry ${gi + 1} of ${groups.length}: compressing video to 720p…`;
-          const small = await shrinkVideo(it.file, (p) => {
-            $('#progress').textContent = `Entry ${gi + 1} of ${groups.length}: compressing video ${Math.round(p * 100)}%`;
-          });
-          const blob = small || it.file;
-          if (small) total -= it.file.size - small.size;
-          else toast(`Couldn't compress ${it.file.name} in this browser — uploading the original.`, 4000);
-          if (blob.size > MAX_VIDEO_MB * 1e6) {
-            skipped.push(it.file.name);
-            continue;
-          }
-          $('#progress').textContent = `Uploading entry ${gi + 1} of ${groups.length}…`;
-          const ext = small ? '.mp4' : ((it.file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase());
-          const path = base + ext;
-          const url = await putFile(path, blob, onBytes);
-          const record = { type: 'video', url, path };
-          if (it.frame) {            // cover image, so the grid doesn't have to load every video
-            record.thumbPath = `${base}_t.jpg`;
-            record.thumb = await putFile(record.thumbPath, it.frame, onBytes);
-          }
-          files.push(record);
-        } else {
-          const ext = (it.file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
-          const path = base + ext;
-          const url = await putFile(path, it.file, onBytes);
-          files.push({ type: 'image', url, path });
+  // Upload one file (plus its thumbnail). Stores the result on the item, so a retry skips finished files.
+  const uploadItem = async (it) => {
+    if (it.record !== undefined) return;
+    it.error = null;
+    const base = `posts/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(it.file.name)}`;
+    let itemTotal = sizeOf(it), itemSent = 0;
+    const onBytes = (n) => {
+      itemSent += n; sent += n;
+      setItem(it, 'upload', Math.min(1, itemSent / itemTotal));
+      paintTotal();
+    };
+    try {
+      if (it.shrunk) {
+        setItem(it, 'upload', 0);
+        const path = `${base}.${extFor(it.shrunk.full.type)}`;
+        const thumbPath = `${base}_t.${extFor(it.shrunk.thumb.type)}`;
+        const [url, thumb] = await Promise.all([
+          putFile(path, it.shrunk.full, onBytes),
+          putFile(thumbPath, it.shrunk.thumb, onBytes),
+        ]);
+        it.record = { type: 'image', url, path, thumb, thumbPath };
+      } else if (it.file.type.startsWith('video/')) {
+        setItem(it, 'compress', 0);
+        const small = await oneVideoAtATime(() => shrinkVideo(it.file, (p) => setItem(it, 'compress', p)));
+        const blob = small || it.file;
+        if (small) { total -= it.file.size - small.size; itemTotal -= it.file.size - small.size; paintTotal(); }
+        else toast(`Couldn't compress ${it.file.name} in this browser — uploading the original.`, 4000);
+        if (blob.size > MAX_VIDEO_MB * 1e6) {
+          skipped.push(it.file.name);
+          it.record = null;
+          setItem(it, 'skip');
+          return;
         }
+        setItem(it, 'upload', 0);
+        const ext = small ? '.mp4' : ((it.file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase());
+        const path = base + ext;
+        const thumbPath = it.frame ? `${base}_t.jpg` : null;  // cover image for the grid
+        const [url, thumb] = await Promise.all([
+          putFile(path, blob, onBytes),
+          thumbPath ? putFile(thumbPath, it.frame, onBytes) : null,
+        ]);
+        it.record = thumb ? { type: 'video', url, path, thumb, thumbPath } : { type: 'video', url, path };
+      } else {
+        setItem(it, 'upload', 0);
+        const ext = (it.file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+        const path = base + ext;
+        it.record = { type: 'image', url: await putFile(path, it.file, onBytes), path };
       }
+      setItem(it, 'done');
+    } catch (err) {
+      console.error('Upload failed:', it.file.name, err);
+      it.error = err;
+      setItem(it, 'error');
+    }
+  };
+
+  try {
+    await pool(items, 3, uploadItem);
+
+    // Save an entry once all of its files are up. Entries with a failed file stay here to retry.
+    const saved = [];
+    let firstError = null;
+    for (const g of groups) {
+      const failed = g.items.find(i => i.error);
+      if (failed) { firstError ||= failed.error; continue; }
+      const files = g.items.map(i => i.record).filter(Boolean);
+      if (!files.length) { saved.push(g); continue; } // everything was skipped
       const placeName = (g.placeName ?? g.place?.name ?? '').trim();
       const place = g.place?.lat != null ? { lat: g.place.lat, lng: g.place.lng, name: placeName }
         : placeName ? { name: placeName } : null;
@@ -820,25 +983,34 @@ $('#uploadBtn').addEventListener('click', async () => {
         files,
         createdAt: new Date().toISOString(),
       };
-      const res = await addDoc(collection(db, 'posts'), entry);
-      posts.push({ id: res.id, ...entry });
-      done.push(g);
+      try {
+        const res = await addDoc(collection(db, 'posts'), entry);
+        posts.push({ id: res.id, ...entry });
+        saved.push(g);
+      } catch (err) {
+        console.error('Saving entry failed:', err);
+        firstError ||= err;
+      }
     }
-    $('#progress').textContent = `Done — ${done.length} entr${done.length === 1 ? 'y' : 'ies'} added.` +
-      (skipped.length ? ` Skipped (still over ${MAX_VIDEO_MB} MB): ${skipped.join(', ')}` : '');
-    clearGroups();
+
+    const left = groups.filter(g => !saved.includes(g));
+    const skipNote = skipped.length ? ` Skipped (still over ${MAX_VIDEO_MB} MB): ${skipped.join(', ')}.` : '';
     renderArchive();
-    setTimeout(() => showView('archive'), 700);
-  } catch (err) {
-    console.error('Upload failed:', err);
-    groups = groups.filter(g => !done.includes(g));
-    renderGroups();
-    renderArchive();
-    $('#progress').textContent = `Upload stopped: ${err.code || err.message}. ${done.length} entr${done.length === 1 ? 'y was' : 'ies were'} saved; the rest are still here to retry.`;
+    if (!left.length) {
+      $('#progress').textContent = `Done — ${saved.length} entr${saved.length === 1 ? 'y' : 'ies'} added.${skipNote}`;
+      clearGroups();
+      setTimeout(() => showView('archive'), 700);
+    } else {
+      groups = left;
+      renderGroups();
+      $('#progress').textContent = `${saved.length} saved, ${left.length} not yet (${firstError?.code || firstError?.message || 'error'}). ` +
+        `Tap “Upload all” again to retry — finished files won't be sent twice.${skipNote}`;
+    }
   } finally {
     btn.disabled = false;
     $('#barWrap').hidden = true;
     $('#bar').style.width = '0';
+    try { await wakeLock?.release(); } catch {}
   }
 });
 
