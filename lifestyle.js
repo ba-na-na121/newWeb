@@ -127,7 +127,8 @@ function renderFilters() {
 
 function thumbEl(file) {
   if (!file) return null;
-  if (file.type === 'video') {
+  // Videos uploaded after the archive update have a stored cover image; older ones fall back to the video itself.
+  if (file.type === 'video' && !file.thumb) {
     return h('video', { src: file.url + '#t=0.1', muted: true, playsInline: true, preload: 'metadata' });
   }
   return h('img', { src: file.thumb || file.url, loading: 'lazy', alt: '' });
@@ -211,7 +212,7 @@ function openEntry(p) {
   document.addEventListener('keydown', onKey);
 
   const media = (p.files || []).map(f => f.type === 'video'
-    ? h('video', { src: f.url, controls: true, playsInline: true, preload: 'metadata' })
+    ? h('video', { src: f.url, controls: true, playsInline: true, preload: 'metadata', poster: f.thumb })
     : h('img', { src: f.url, loading: 'lazy', alt: '' }));
 
   const facts = h('div', { class: 'modal-facts' },
@@ -363,6 +364,30 @@ let exifrPromise = null;
 const loadExifr = () => (exifrPromise ||= import('https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.mjs')
   .then(m => m.default).catch(() => null));
 
+// Grab one still frame from a video (about 1 second in) as a small JPEG.
+// Used as the video's cover image and as the picture the AI looks at. Returns null on failure.
+function videoFrame(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement('video');
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = 'auto';
+    const finish = (blob) => { clearTimeout(timer); URL.revokeObjectURL(url); resolve(blob); };
+    const timer = setTimeout(() => finish(null), 10000);
+    v.addEventListener('error', () => finish(null));
+    v.addEventListener('loadeddata', () => { v.currentTime = Math.min(1, (v.duration || 2) / 2); });
+    v.addEventListener('seeked', () => {
+      if (!v.videoWidth) return finish(null);
+      const s = Math.min(1, THUMB_MAX / Math.max(v.videoWidth, v.videoHeight));
+      const c = h('canvas', { width: Math.round(v.videoWidth * s), height: Math.round(v.videoHeight * s) });
+      c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+      c.toBlob((b) => finish(b), 'image/jpeg', 0.75);
+    }, { once: true });
+    v.src = url;
+  });
+}
+
 // Shrink a video to 720p MP4 in the browser (hardware encoder, nothing to install).
 // Returns null when the browser can't do it or the result isn't smaller; the original is uploaded then.
 let mediabunnyPromise = null;
@@ -480,9 +505,10 @@ async function addFiles(files) {
   for (const file of files) {
     const meta = await readMeta(file);
     const shrunk = file.type.startsWith('image/') && !isHeic(file) ? await shrink(file) : null;
+    const frame = file.type.startsWith('video/') ? await videoFrame(file) : null;
     const preview = shrunk ? URL.createObjectURL(shrunk.thumb)
       : file.type.startsWith('video/') ? URL.createObjectURL(file) : null;
-    items.push({ file, meta, shrunk, preview });
+    items.push({ file, meta, shrunk, frame, preview });
   }
   pendingItems.push(...items);
   $('#progress').textContent = '';
@@ -592,9 +618,10 @@ const blobToBase64 = (blob) => new Promise((res, rej) => {
 
 async function suggest(g, { auto = false } = {}) {
   if (g.aiBusy) return;
-  const images = g.items.filter(i => i.shrunk).slice(0, 6);
+  // Photos use their thumbnail; videos use a still frame. HEIC photos can't be read by the browser.
+  const images = g.items.map(i => i.shrunk?.thumb || i.frame).filter(Boolean).slice(0, 6);
   if (!images.length && !g.text) {
-    if (!auto) toast('AI needs at least one photo (videos and HEIC are skipped) or some text.');
+    if (!auto) toast("AI can't read these files (HEIC photos aren't supported). Add a note and try again.", 5000);
     return;
   }
   g.aiBusy = true;
@@ -614,8 +641,8 @@ async function suggest(g, { auto = false } = {}) {
       '- place: if GPS is given, the neighborhood and city it points to; otherwise a clearly recognizable landmark or city, else an empty string.',
       'If the owner\'s note is in Chinese, write title, caption and tags in Chinese; otherwise in English.',
     ].filter(Boolean).join('\n');
-    const parts = [prompt, ...await Promise.all(images.map(async i =>
-      ({ inlineData: { mimeType: i.shrunk.thumb.type, data: await blobToBase64(i.shrunk.thumb) } })))];
+    const parts = [prompt, ...await Promise.all(images.map(async b =>
+      ({ inlineData: { mimeType: b.type, data: await blobToBase64(b) } })))];
     const result = await model.generateContent(parts);
     const out = JSON.parse(result.response.text());
     if (!g.title && out.title) g.title = out.title.trim();
@@ -660,7 +687,7 @@ $('#uploadBtn').addEventListener('click', async () => {
   const bulkTags = parseTags($('#bulkTags').value);
   const bulkCat = $('#bulkCategory').value;
   let total = groups.reduce((n, g) => n + g.items.reduce((m, i) =>
-    m + (i.shrunk ? i.shrunk.full.size + i.shrunk.thumb.size : i.file.size), 0), 0);
+    m + (i.shrunk ? i.shrunk.full.size + i.shrunk.thumb.size : i.file.size + (i.frame?.size || 0)), 0), 0);
   let sent = 0;
   const skipped = [];
   const onBytes = (n) => { sent += n; $('#bar').style.width = `${Math.min(100, (sent / total) * 100).toFixed(1)}%`; };
@@ -695,7 +722,12 @@ $('#uploadBtn').addEventListener('click', async () => {
           const ext = small ? '.mp4' : ((it.file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase());
           const path = base + ext;
           const url = await putFile(path, blob, onBytes);
-          files.push({ type: 'video', url, path });
+          const record = { type: 'video', url, path };
+          if (it.frame) {            // cover image, so the grid doesn't have to load every video
+            record.thumbPath = `${base}_t.jpg`;
+            record.thumb = await putFile(record.thumbPath, it.frame, onBytes);
+          }
+          files.push(record);
         } else {
           const ext = (it.file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
           const path = base + ext;
