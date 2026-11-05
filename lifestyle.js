@@ -436,8 +436,69 @@ async function shrinkVideo(file, onProgress) {
 
 const isHeic = (f) => /heic|heif/i.test(f.type) || /\.(heic|heif)$/i.test(f.name);
 
+// When and where a video was filmed. iPhone videos store both; most others at least store a creation time.
+async function readVideoMeta(file) {
+  const out = {};
+  const mb = await loadMediabunny();
+  if (mb) {
+    try {
+      const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+      const tags = await input.getMetadataTags();
+      if (tags.date instanceof Date && !isNaN(tags.date)) { out.date = localDay(tags.date); out.dateSource = 'video'; }
+      const raw = tags.raw || {};
+      // iPhone: Apple key; Android (MediaMuxer) and most cameras: ©xyz; some editors: "location"
+      let loc = raw['com.apple.quicktime.location.ISO6709'] ?? raw['©xyz'] ?? raw['location'];
+      if (Array.isArray(loc)) loc = loc[0];
+      const m = typeof loc === 'string' && loc.match(/([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)/);
+      if (m && Math.abs(+m[1]) <= 90 && Math.abs(+m[2]) <= 180) {
+        out.lat = +(+m[1]).toFixed(5);
+        out.lng = +(+m[2]).toFixed(5);
+      }
+      input.dispose?.();
+    } catch {}
+  }
+  if (!out.date) {
+    const t = await mp4CreationTime(file);
+    if (t) { out.date = localDay(t); out.dateSource = 'video'; }
+  }
+  return out;
+}
+
+// Fallback: the creation time in the MP4/MOV header ("mvhd" box), seconds since 1904 in UTC.
+async function mp4CreationTime(file) {
+  try {
+    let pos = 0;
+    while (pos + 8 <= file.size) {
+      const head = new DataView(await file.slice(pos, pos + 16).arrayBuffer());
+      let size = head.getUint32(0);
+      const type = String.fromCharCode(head.getUint8(4), head.getUint8(5), head.getUint8(6), head.getUint8(7));
+      let hdr = 8;
+      if (size === 1) { size = Number(head.getBigUint64(8)); hdr = 16; }
+      else if (size === 0) size = file.size - pos;
+      if (size < hdr) return null;
+      if (type === 'moov') {
+        const moov = new Uint8Array(await file.slice(pos + hdr, pos + Math.min(size, hdr + 4e6)).arrayBuffer());
+        for (let i = 4; i + 16 < moov.length; i++) {
+          if (moov[i] === 0x6d && moov[i + 1] === 0x76 && moov[i + 2] === 0x68 && moov[i + 3] === 0x64) { // "mvhd"
+            const dv = new DataView(moov.buffer, moov.byteOffset + i + 4);
+            const secs = dv.getUint8(0) === 1 ? Number(dv.getBigUint64(4)) : dv.getUint32(4);
+            if (!secs) return null;
+            const d = new Date((secs - 2082844800) * 1000);
+            return d.getFullYear() >= 2000 && d <= new Date() ? d : null;
+          }
+        }
+        return null;
+      }
+      pos += size;
+    }
+  } catch {}
+  return null;
+}
+
 async function readMeta(file) {
-  const meta = { date: localDay(file.lastModified || Date.now()), lat: null, lng: null };
+  // dateSource: 'photo' / 'video' = read from the file itself; 'file' = only the file's modified time (a guess)
+  const meta = { date: localDay(file.lastModified || Date.now()), dateSource: 'file', lat: null, lng: null };
+  if (file.type.startsWith('video/')) return { ...meta, ...await readVideoMeta(file) };
   if (!file.type.startsWith('image/')) return meta;
   const exifr = await loadExifr();
   if (!exifr) return meta;
@@ -445,7 +506,7 @@ async function readMeta(file) {
     // (exifr's "pick" option is broken in the lite build, so read everything — it's small.)
     const tags = await exifr.parse(file);
     const d = tags?.DateTimeOriginal || tags?.CreateDate;
-    if (d instanceof Date && !isNaN(d)) meta.date = localDay(d);
+    if (d instanceof Date && !isNaN(d)) { meta.date = localDay(d); meta.dateSource = 'photo'; }
     if (Number.isFinite(tags?.latitude) && Number.isFinite(tags?.longitude)) {
       meta.lat = +tags.latitude.toFixed(5);
       meta.lng = +tags.longitude.toFixed(5);
@@ -556,6 +617,7 @@ function groupEl(g) {
     return el;
   };
   const heic = g.items.filter(i => isHeic(i.file)).length;
+  const dateGuessed = g.items.every(i => i.meta.dateSource === 'file');
   return h('div', { class: 'group' },
     h('div', { class: 'group-head' },
       bind(h('input', { class: 'field', type: 'date', value: g.date }), 'date'),
@@ -573,6 +635,7 @@ function groupEl(g) {
       i.file.type.startsWith('video/') ? h('video', { src: i.preview, muted: true, preload: 'metadata' })
         : i.preview ? h('img', { src: i.preview, alt: '' })
           : h('div', { class: 'heic', text: 'HEIC' }))),
+    dateGuessed && h('p', { class: 'hint warn', text: "⚠ Couldn't find when this was taken — the date is just the file's date. Please check it." }),
     heic > 0 && h('p', { class: 'hint', text: `${heic} HEIC photo(s): most browsers can't show these. Export them from iCloud as JPEG (“Most Compatible”) first.` }),
     bind(h('input', { class: 'field', value: g.title, placeholder: 'Title', style: 'width:100%;margin-bottom:8px' }), 'title'),
     bind(h('textarea', { class: 'field', placeholder: 'What happened? (optional)', value: g.text }), 'text'),

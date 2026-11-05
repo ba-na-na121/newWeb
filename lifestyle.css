@@ -285,6 +285,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 16px 20px 80px; }
 .group .line { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .group .line .field { flex: 1 1 140px; }
 .gps { font-size: 12px; color: var(--neon-3); }
+.hint.warn { color: #ffd23d; margin: 6px 0 0; }
 
 .btn {
   background: none;
