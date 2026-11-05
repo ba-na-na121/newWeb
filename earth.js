@@ -10,9 +10,13 @@ let rotationSpeedY = 0;
 let isDragging = false;
 let prevMouseX = 0;
 let prevMouseY = 0;
-let timeString = '';
-let locString = '';
 let zoom = 1;
+
+// Intro: the earth starts a bit smaller and eases up to full size once the page is ready.
+const INTRO_FROM = 0.6;
+const INTRO_MS = 2400;
+let introActive = true;
+let introStart = 0;
 
 // Fewer particles on phones so the animation stays smooth.
 const PARTICLE_COUNT = Math.min(window.innerWidth, window.innerHeight) < 600 ? 400 : 800;
@@ -33,19 +37,24 @@ function setup() {
   noStroke();
   for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
 
-  if (window.EARTH_SHOW_HUD) {
-    setupHud();
-    updateTimeAndLoc();
-    setInterval(updateTimeAndLoc, 1000);
-  }
+  if (window.EARTH_SHOW_HUD) setupHud();
 
   // preload() has finished by the time setup() runs, so hide the loader now.
   const loading = document.getElementById('loading');
   if (loading) loading.style.display = 'none';
+
+  zoom = INTRO_FROM;
+  introStart = performance.now();
 }
 
 function draw() {
   background(0);
+
+  if (introActive) {
+    const t = Math.min(1, (performance.now() - introStart) / INTRO_MS);
+    zoom = INTRO_FROM + (1 - INTRO_FROM) * (1 - Math.pow(1 - t, 3)); // ease-out
+    if (t >= 1) introActive = false;
+  }
 
   if (isDragging) {
     rotationSpeedY = (mouseX - prevMouseX) * 0.003;
@@ -66,8 +75,6 @@ function draw() {
   drawEarth();
   drawParticles();
   pop();
-
-  if (window.EARTH_SHOW_HUD) drawHud();
 }
 
 function drawEarth() {
@@ -87,35 +94,24 @@ function drawParticles() {
   }
 }
 
-// Corner info text. Drawn as HTML on top of the canvas: p5's WEBGL mode can't draw
-// text without a loaded font, which is why it never showed up before.
-let hudLeft, hudRight;
+// Bottom-right readout: a ticking clock and a fixed made-up location, in plain white.
+// Drawn as HTML on top of the canvas (p5's WEBGL mode can't draw text without a loaded font).
+let hudClock;
+
 function setupHud() {
-  hudLeft = document.createElement('div');
-  hudRight = document.createElement('div');
-  hudLeft.className = 'earth-hud earth-hud-left';
-  hudRight.className = 'earth-hud earth-hud-right';
-  document.body.append(hudLeft, hudRight);
+  const box = document.createElement('div');
+  box.className = 'earth-hud';
+  hudClock = document.createElement('div');
+  const loc = document.createElement('div');
+  loc.textContent = `LOC: ${random(20, 60).toFixed(1)}°N ${random(30, 90).toFixed(1)}°E`;
+  box.append(hudClock, loc);
+  document.body.append(box);
+  tickClock();
+  setInterval(tickClock, 1000);
 }
 
-function drawHud() {
-  if (frameCount % 6 !== 0) return; // DOM updates ~10x per second are plenty
-  const lines = [
-    'EN-US',
-    `X:${Math.round(mouseX)}`,
-    `Y:${Math.round(mouseY)}`,
-    `ONLINE:${navigator.onLine}`,
-  ];
-  if (width >= 700) lines.unshift(navigator.userAgent);
-  const color = () => `hsl(${Math.floor(Math.random() * 360)}, 100%, 60%)`;
-  hudLeft.innerHTML = lines.map(l => `<div style="color:${color()}">${escapeHtml(l)}</div>`).join('');
-  hudRight.innerHTML =
-    `<div style="color:${color()}">TIME: ${timeString}</div>` +
-    `<div style="color:${color()}">LOC: ${locString}</div>`;
-}
-
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function tickClock() {
+  hudClock.textContent = `TIME: ${new Date().toLocaleTimeString()}`;
 }
 
 class Particle {
@@ -147,12 +143,8 @@ function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
 }
 
-function updateTimeAndLoc() {
-  timeString = new Date().toLocaleTimeString();
-  locString = `${random(20, 60).toFixed(1)}°N ${random(30, 90).toFixed(1)}°E`;
-}
-
 function mouseWheel(event) {
+  introActive = false; // the visitor is in control now
   zoom = constrain(zoom - event.delta * 0.001, 0.5, 2); // 限制缩放范围
   return false;
 }

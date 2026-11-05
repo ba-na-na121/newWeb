@@ -19,7 +19,8 @@ html, body {
   color: white;
 }
 
-canvas { display: block; }
+canvas { display: block; animation: canvasIn 1.4s ease-out; }
+@keyframes canvasIn { from { opacity: 0; } to { opacity: 1; } }
 
 #main-header {
   position: absolute;
@@ -49,18 +50,15 @@ canvas { display: block; }
 .earth-hud {
   position: absolute;
   z-index: 1;
+  bottom: 8px;
+  right: 20px;
+  color: #fff;
   font-family: 'Courier New', Courier, monospace;
   font-size: 13px;
   line-height: 20px;
   pointer-events: none;
 }
-.earth-hud div {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.earth-hud-left { top: 12px; left: 20px; max-width: 30vw; }
-.earth-hud-right { bottom: 8px; right: 20px; }
+.earth-hud div { white-space: nowrap; }
 
 footer {
   position: absolute;
@@ -81,6 +79,5 @@ footer {
 
 @media (max-width: 600px) {
   #main-header { font-size: 32px; }
-  .earth-hud-left { display: none; }
-  .earth-hud-right { bottom: 34px; right: 50%; transform: translateX(50%); text-align: center; }
+  .earth-hud { bottom: 34px; right: 50%; transform: translateX(50%); text-align: center; }
 }
