@@ -67,6 +67,7 @@ function logLine(msg) {
   if (!el) return;
   const t = ((Date.now() - logStart) / 1000).toFixed(1).padStart(6);
   el.textContent = (el.textContent + `${t}s  ${msg}\n`).split('\n').slice(-300).join('\n');
+  if (/^(↻|✕|AI ✕)/.test(msg)) el.closest('details')?.setAttribute('open', '');
 }
 const mb = (n) => `${(n / 1e6).toFixed(1)} MB`;
 
@@ -381,9 +382,64 @@ let exifrPromise = null;
 const loadExifr = () => (exifrPromise ||= import('https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.esm.mjs')
   .then(m => m.default).catch(() => null));
 
-// Grab one still frame from a video (about 1 second in) as a small JPEG.
-// Used as the video's cover image and as the picture the AI looks at. Returns null on failure.
-function videoFrame(file) {
+// Is this picture (almost) completely black? Checks a 16×16 shrunken copy.
+function isDark(source) {
+  try {
+    const c = h('canvas', { width: 16, height: 16 });
+    const x = c.getContext('2d');
+    x.drawImage(source, 0, 0, 16, 16);
+    const d = x.getImageData(0, 0, 16, 16).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
+    return sum / (d.length / 4) / 3 < 14;
+  } catch { return false; }
+}
+const canvasToJpeg = (c) => c.convertToBlob
+  ? c.convertToBlob({ type: 'image/jpeg', quality: 0.75 })
+  : new Promise((r) => c.toBlob(r, 'image/jpeg', 0.75));
+
+// Grab one still frame from a video as a small JPEG, skipping black frames (fade-ins, black first second).
+// Used as the video's cover image, its preview, and the picture the AI looks at. Returns null on failure.
+async function videoFrame(file) {
+  // 1) Decode the frame directly (WebCodecs). Works the same on iPhone and computers. On iPhone, drawing
+  //    a <video> element that isn't playing gives a black picture, which is what this avoids.
+  const mbLib = 'VideoDecoder' in window ? await loadMediabunny() : null;
+  if (mbLib) {
+    let input = null;
+    try {
+      input = new mbLib.Input({ source: new mbLib.BlobSource(file), formats: mbLib.ALL_FORMATS });
+      const track = await input.getPrimaryVideoTrack();
+      if (track && await track.canDecode()) {
+        const dur = await input.computeDuration().catch(() => 0);
+        const w = track.displayWidth, ht = track.displayHeight;
+        const s = Math.min(1, THUMB_MAX / Math.max(w, ht));
+        const sink = new mbLib.CanvasSink(track, { width: Math.round(w * s), height: Math.round(ht * s), fit: 'contain' });
+        const times = [Math.min(1, dur / 2), dur * 0.3, dur * 0.6, dur * 0.85].filter((t, i, a) => t >= 0 && a.indexOf(t) === i);
+        let fallback = null;
+        for (const t of times) {
+          const wc = await sink.getCanvas(t);
+          if (!wc) continue;
+          if (!isDark(wc.canvas)) {
+            logLine(`cover for ${file.name}: frame at ${t.toFixed(1)}s`);
+            return await canvasToJpeg(wc.canvas);
+          }
+          fallback ||= wc.canvas;
+        }
+        if (fallback) { logLine(`cover for ${file.name}: whole video is dark`); return await canvasToJpeg(fallback); }
+      }
+    } catch (err) {
+      logLine(`cover for ${file.name}: decoder failed (${String(err?.message || err).slice(0, 80)}), trying the player`);
+    } finally {
+      try { input?.dispose?.(); } catch {}
+    }
+  }
+  // 2) Fallback for browsers without a video decoder: the <video> element. A black result is thrown away.
+  const blob = await videoFrameFromElement(file);
+  logLine(`cover for ${file.name}: ${blob ? 'from player' : 'none (could not get a picture)'}`);
+  return blob;
+}
+
+function videoFrameFromElement(file) {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const v = document.createElement('video');
@@ -395,10 +451,9 @@ function videoFrame(file) {
     const finish = (blob) => { if (done) return; done = true; clearTimeout(timer); v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url); resolve(blob); };
     const timer = setTimeout(() => finish(null), 8000);
     v.addEventListener('error', () => finish(null));
-    // iPhones don't load video data until asked, so seek as soon as the duration is known (seeking loads it).
     v.addEventListener('loadedmetadata', () => { v.currentTime = Math.min(1, (v.duration || 2) / 2); }, { once: true });
     v.addEventListener('seeked', () => {
-      if (!v.videoWidth) return finish(null);
+      if (!v.videoWidth || isDark(v)) return finish(null);
       const s = Math.min(1, THUMB_MAX / Math.max(v.videoWidth, v.videoHeight));
       const c = h('canvas', { width: Math.round(v.videoWidth * s), height: Math.round(v.videoHeight * s) });
       c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
@@ -865,6 +920,7 @@ function thumbWithProgress(i) {
 }
 
 function setItem(i, phase, pct = 0) {
+  if (i.phase !== phase) i.since = Date.now();
   i.phase = phase;
   i.pct = pct;
   paintItem(i);
@@ -878,7 +934,13 @@ function paintItem(i) {
   i.ui.label.textContent = {
     wait: 'waiting', compress: `compress ${pct}%`, upload: `${pct}%`, done: '✓', error: 'failed', skip: 'too big',
   }[i.phase] || '';
+  // Seconds spent at this step, once it's been a while.
+  const secs = Math.round((Date.now() - (i.since || Date.now())) / 1000);
+  if ((i.phase === 'upload' || i.phase === 'compress') && secs >= 5) i.ui.label.textContent += ` · ${secs}s`;
 }
+setInterval(() => groups.forEach(g => g.items.forEach(i => {
+  if (i.phase === 'upload' || i.phase === 'compress') paintItem(i);
+})), 1000);
 
 // Run fn over items with at most `limit` at a time (phones upload faster with a few in parallel).
 async function pool(items, limit, fn) {
