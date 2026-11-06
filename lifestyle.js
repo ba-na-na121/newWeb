@@ -848,8 +848,20 @@ const blobToBase64 = (blob) => new Promise((res, rej) => {
   r.readAsDataURL(blob);
 });
 
+// The reCAPTCHA key behind the AI only accepts the live site, so previews on other addresses
+// (like http://192.168.x.x from `npx serve` on a phone) can't use it. localhost works with a debug token.
+const AI_HOSTS = ['ba-na-na121.github.io', 'localhost', '127.0.0.1'];
+let previewNoticeShown = false;
+
 async function suggest(g, { auto = false } = {}) {
   if (g.aiBusy) return;
+  if (!AI_HOSTS.includes(location.hostname)) {
+    if (!auto || !previewNoticeShown) {
+      toast('Preview address: AI only works on the live site (ba-na-na121.github.io). Everything else here works.', 6000);
+      previewNoticeShown = true;
+    }
+    return;
+  }
   // Photos use their thumbnail; videos use a still frame. HEIC photos can't be read by the browser.
   const images = g.items.map(i => i.shrunk?.thumb || i.frame).filter(Boolean).slice(0, 6);
   if (!images.length && !g.text) {
