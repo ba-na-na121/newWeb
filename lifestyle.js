@@ -693,7 +693,9 @@ async function shrink(file) {
       const s = Math.min(1, max / Math.max(bmp.width, bmp.height));
       const c = h('canvas', { width: Math.round(bmp.width * s), height: Math.round(bmp.height * s) });
       c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-      return new Promise(res => c.toBlob(res, 'image/webp', q));
+      // Safari (iPhone) can't make WebP and quietly hands back a huge PNG instead, so use JPEG there.
+      return new Promise(res => c.toBlob(b => b && b.type === 'image/webp' ? res(b)
+        : c.toBlob(res, 'image/jpeg', q + 0.03), 'image/webp', q));
     };
     const full = await draw(DISPLAY_MAX, 0.82);
     const thumb = await draw(THUMB_MAX, 0.72);

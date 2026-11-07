@@ -14,7 +14,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyA6RiB-bqTR3on_KpIRARLm0W3SWeYWaz0",
   authDomain: "wenzuoweb.firebaseapp.com",
   projectId: "wenzuoweb",
-  storageBucket: "wenzuoweb.appspot.com",
+  storageBucket: "wenzuoweb.firebasestorage.app", // the project's real bucket (wenzuoweb.appspot.com does not exist)
   messagingSenderId: "415514650847",
   appId: "1:415514650847:web:18d293683bfcbea4f9e16a",
   measurementId: "G-MDDZ10S396"
