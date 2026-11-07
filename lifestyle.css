@@ -299,6 +299,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 16px 20px 80px; }
 .tw[data-phase="done"] .tlabel { color: var(--neon-3); }
 .tw[data-phase="error"] .tlabel, .tw[data-phase="skip"] .tlabel { color: #ff5555; }
 .tw[data-phase="error"] .tbar { background: #ff5555; }
+.tw[data-phase="cancel"] .tlabel { color: var(--muted); }
+.log .btn { margin-top: 8px; }
 .group textarea { width: 100%; min-height: 54px; resize: vertical; }
 .group .line { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .group .line .field { flex: 1 1 140px; }

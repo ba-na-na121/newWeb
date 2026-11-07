@@ -71,6 +71,14 @@ function logLine(msg) {
 }
 const mb = (n) => `${(n / 1e6).toFixed(1)} MB`;
 
+// Cancelling: "Clear" stops reading files; while uploading it becomes "Cancel" and stops the upload.
+let readGen = 0;              // bumped by Clear, so files still being read are dropped
+let readingNow = 0;           // how many addFiles() runs are in progress
+let uploading = false;
+let cancelRequested = false;
+let currentConversion = null; // video compression in progress, so it can be stopped
+const cancelledError = () => Object.assign(new Error('cancelled'), { code: 'cancelled' });
+
 // ---------- Saved (★) — remembered on this device ----------
 const SAVED_KEY = 'lifestyle-likes';
 function getSaved() {
@@ -475,6 +483,7 @@ async function shrinkVideo(file, onProgress) {
   if (!mb) return null;
   // Try the hardware encoder first; some machines only offer a software one.
   for (const hardwareAcceleration of ['prefer-hardware', 'no-preference']) {
+    if (cancelRequested) return null;
     try {
       const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
       const output = new mb.Output({ format: new mb.Mp4OutputFormat({ fastStart: 'in-memory' }), target: new mb.BufferTarget() });
@@ -499,11 +508,14 @@ async function shrinkVideo(file, onProgress) {
       // Never upload a video that silently lost its sound or picture.
       if (!conv.isValid || conv.discardedTracks.length) return null;
       conv.onProgress = onProgress;
-      await conv.execute();
+      currentConversion = conv;
+      try { await conv.execute(); } finally { currentConversion = null; }
       const blob = new Blob([output.target.buffer], { type: 'video/mp4' });
       return blob.size < file.size * 0.9 ? blob : null;
     } catch (err) {
+      if (cancelRequested) return null;
       console.warn(`Video compression (${hardwareAcceleration}) failed:`, err.message || err);
+      logLine(`compress (${hardwareAcceleration}) failed: ${String(err?.message || err).slice(0, 120)}`);
     }
   }
   return null;
@@ -701,11 +713,28 @@ $('#files').addEventListener('change', (e) => addFiles([...e.target.files]));
 ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, () => drop.classList.remove('over')));
 drop.addEventListener('drop', (e) => { e.preventDefault(); addFiles([...e.dataTransfer.files]); });
 $('#groupByDay').addEventListener('change', () => regroup());
-$('#clearBtn').addEventListener('click', () => { clearGroups(); });
+$('#clearBtn').addEventListener('click', () => {
+  if (uploading) cancelUpload();
+  else clearGroups();
+});
+
+function cancelUpload() {
+  if (cancelRequested) return;
+  cancelRequested = true;
+  logLine('cancel requested');
+  $('#progress').textContent = 'Cancelling…';
+  $('#clearBtn').disabled = true;
+  try { currentConversion?.cancel(); } catch {}
+  for (const entry of active) { entry.byUser = true; entry.task.cancel(); }
+}
 
 function clearGroups() {
+  readGen++;                       // files still being read are dropped
+  pendingItems.forEach(i => i.preview && URL.revokeObjectURL(i.preview));
+  pendingItems = [];
   groups.forEach(g => g.items.forEach(i => i.preview && URL.revokeObjectURL(i.preview)));
   groups = [];
+  $('#progress').textContent = '';
   $('#files').value = '';
   renderGroups();
 }
@@ -720,9 +749,14 @@ async function addFiles(files) {
   files = files.filter(f => !tooBig.includes(f));
 
   // Read two files at a time and show each one as soon as it's ready, instead of waiting for all of them.
+  const gen = readGen;
   let readCount = 0;
+  readingNow++;
+  $('#uploadBtn').disabled = true;            // wait until everything is read
   $('#progress').textContent = `Reading 0 of ${files.length}…`;
+  try {
   await pool(files, 2, async (file) => {
+    if (gen !== readGen) return;              // Clear was pressed
     const t0 = Date.now();
     const meta = await readMeta(file);
     const isImage = file.type.startsWith('image/') || isHeic(file);
@@ -732,6 +766,7 @@ async function addFiles(files) {
     const preview = shrunk ? URL.createObjectURL(shrunk.thumb)
       : frame ? URL.createObjectURL(frame)
         : file.type.startsWith('video/') ? URL.createObjectURL(file) : null;
+    if (gen !== readGen) { if (preview) URL.revokeObjectURL(preview); return; }
     pendingItems.push({ file, meta, shrunk, frame, preview });
     readCount++;
     $('#progress').textContent = readCount < files.length ? `Reading ${readCount} of ${files.length}…` : '';
@@ -740,6 +775,11 @@ async function addFiles(files) {
       ` · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     regroup();
   });
+  } finally {
+    readingNow--;
+    if (!readingNow && !uploading) $('#uploadBtn').disabled = false;
+  }
+  if (gen !== readGen) { logLine('reading cancelled'); return; }
   $('#progress').textContent = '';
   if ($('#autoAi').checked) groups.filter(g => !g.aiDone).forEach(g => suggest(g, { auto: true }));
 }
@@ -944,7 +984,7 @@ function paintItem(i) {
   i.ui.wrap.dataset.phase = i.phase || '';
   i.ui.bar.style.width = `${i.phase === 'done' ? 100 : pct}%`;
   i.ui.label.textContent = {
-    wait: 'waiting', compress: `compress ${pct}%`, upload: `${pct}%`, done: '✓', error: 'failed', skip: 'too big',
+    wait: 'waiting', compress: `compress ${pct}%`, upload: `${pct}%`, done: '✓', error: 'failed', skip: 'too big', cancel: 'cancelled',
   }[i.phase] || '';
   // Seconds spent at this step, once it's been a while.
   const secs = Math.round((Date.now() - (i.since || Date.now())) / 1000);
@@ -979,11 +1019,23 @@ const oneVideoAtATime = (fn) => {
 const STALL_MS = 30000;          // no progress for this long → cancel and try that file again
 const active = new Set();        // uploads in flight: { task, lastChange }
 
+// Files up to this size are read into memory before uploading (see putFileOnce).
+const IN_MEMORY_MAX = 300 * 1e6;
+
 // One attempt. Progress made by a failed attempt is taken back off the bars.
-function putFileOnce(path, blob, onBytes) {
+async function putFileOnce(path, blob, onBytes, label) {
+  // Read the file into memory first. On iPhones, uploading straight from a file picked in the photo library
+  // can hang forever with no error; reading it first either works or fails with a clear error.
+  let data = blob;
+  if (blob.size <= IN_MEMORY_MAX) {
+    data = new Uint8Array(await withTimeout(blob.arrayBuffer(), 60000, 'reading the file from the phone took too long'));
+  }
+  if (cancelRequested) throw cancelledError();
+  const t0 = Date.now();
+  logLine(`↑ ${label}: sending ${mb(blob.size)} (${blob.type || 'no type'})`);
   return new Promise((resolve, reject) => {
-    const task = uploadBytesResumable(ref(storage, path), blob, { contentType: blob.type || 'application/octet-stream' });
-    const entry = { task, lastChange: Date.now(), stalled: false };
+    const task = uploadBytesResumable(ref(storage, path), data, { contentType: blob.type || 'application/octet-stream' });
+    const entry = { task, lastChange: Date.now(), stalled: false, byUser: false };
     active.add(entry);
     let last = 0;
     const watchdog = setInterval(() => {
@@ -992,12 +1044,20 @@ function putFileOnce(path, blob, onBytes) {
     const end = () => { clearInterval(watchdog); active.delete(entry); };
     task.on('state_changed',
       (s) => {
-        if (s.bytesTransferred !== last) { onBytes(s.bytesTransferred - last); last = s.bytesTransferred; entry.lastChange = Date.now(); }
+        if (s.bytesTransferred !== last) {
+          if (!last) logLine(`  ${label}: first bytes reached the server after ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+          onBytes(s.bytesTransferred - last); last = s.bytesTransferred; entry.lastChange = Date.now();
+        }
       },
       (err) => {
         end();
         onBytes(-last);
-        if (entry.stalled) err = Object.assign(new Error(`no progress for ${STALL_MS / 1000}s`), { code: 'stalled' });
+        if (entry.byUser) err = cancelledError();
+        else if (entry.stalled) err = Object.assign(new Error(`no progress for ${STALL_MS / 1000}s`), { code: 'stalled' });
+        else {
+          const server = err?.customData?.serverResponse;
+          if (server) logLine(`  server said: ${String(server).replace(/\s+/g, ' ').slice(0, 300)}`);
+        }
         reject(err);
       },
       async () => {
@@ -1011,8 +1071,9 @@ function putFileOnce(path, blob, onBytes) {
 async function putFile(path, blob, onBytes, label = path) {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await putFileOnce(path, blob, onBytes);
+      return await putFileOnce(path, blob, onBytes, label);
     } catch (err) {
+      if (cancelRequested || err.code === 'cancelled') throw cancelledError();
       const why = err.code === 'stalled' ? err.message : (err.code || err.message);
       if (attempt >= 4 || err.code === 'storage/unauthorized' || err.code === 'storage/unauthenticated') {
         logLine(`✕ ${label}: ${why} (gave up after ${attempt} tries)`);
@@ -1038,9 +1099,14 @@ const safeName = (name) => name.replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_')
 const extFor = (type) => ({ 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jpg' }[type] || 'bin');
 
 $('#uploadBtn').addEventListener('click', async () => {
-  if (!groups.length) return;
+  if (!groups.length || uploading || readingNow) return;
   const btn = $('#uploadBtn');
   btn.disabled = true;
+  uploading = true;
+  cancelRequested = false;
+  $('#clearBtn').textContent = 'Cancel';
+  $('#clearBtn').disabled = false;
+  document.querySelector('details.log')?.setAttribute('open', '');
   $('#barWrap').hidden = false;
 
   // Keep the phone screen on while uploading: iPhones pause uploads when the screen locks.
@@ -1062,6 +1128,7 @@ $('#uploadBtn').addEventListener('click', async () => {
   // Upload one file (plus its thumbnail). Stores the result on the item, so a retry skips finished files.
   const uploadItem = async (it) => {
     if (it.record !== undefined) return;
+    if (cancelRequested) { it.error = cancelledError(); setItem(it, 'cancel'); return; }
     it.error = null;
     const base = `posts/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(it.file.name)}`;
     let itemTotal = sizeOf(it), itemSent = 0;
@@ -1082,7 +1149,8 @@ $('#uploadBtn').addEventListener('click', async () => {
         it.record = { type: 'image', url, path, thumb, thumbPath };
       } else if (it.file.type.startsWith('video/')) {
         setItem(it, 'compress', 0);
-        const small = await oneVideoAtATime(() => shrinkVideo(it.file, (p) => setItem(it, 'compress', p)));
+        const small = await oneVideoAtATime(() => cancelRequested ? null : shrinkVideo(it.file, (p) => setItem(it, 'compress', p)));
+        if (cancelRequested) throw cancelledError();
         const blob = small || it.file;
         if (small) { total -= it.file.size - small.size; itemTotal -= it.file.size - small.size; paintTotal(); }
         else toast(`Couldn't compress ${it.file.name} in this browser — uploading the original.`, 4000);
@@ -1111,9 +1179,11 @@ $('#uploadBtn').addEventListener('click', async () => {
       setItem(it, 'done');
       logLine(`✓ ${it.file.name} uploaded`);
     } catch (err) {
-      console.error('Upload failed:', it.file.name, err);
       it.error = err;
+      if (err.code === 'cancelled') { setItem(it, 'cancel'); return; }
+      console.error('Upload failed:', it.file.name, err);
       setItem(it, 'error');
+      logLine(`✕ ${it.file.name}: ${err.code || ''} ${String(err.message || err).slice(0, 160)}`);
     }
   };
 
@@ -1155,20 +1225,41 @@ $('#uploadBtn').addEventListener('click', async () => {
     const skipNote = skipped.length ? ` Skipped (still over ${MAX_VIDEO_MB} MB): ${skipped.join(', ')}.` : '';
     renderArchive();
     if (!left.length) {
+      clearGroups();   // (clears the status line too, so set the message after)
       $('#progress').textContent = `Done — ${saved.length} entr${saved.length === 1 ? 'y' : 'ies'} added.${skipNote}`;
-      clearGroups();
       setTimeout(() => showView('archive'), 700);
     } else {
       groups = left;
       renderGroups();
-      $('#progress').textContent = `${saved.length} saved, ${left.length} not yet (${firstError?.code || firstError?.message || 'error'}). ` +
-        `Tap “Upload all” again to retry — finished files won't be sent twice.${skipNote}`;
+      $('#progress').textContent = cancelRequested
+        ? `Cancelled. ${saved.length} saved; ${left.length} still here. Tap “Upload all” to continue — finished files won't be sent twice.`
+        : `${saved.length} saved, ${left.length} not yet (${firstError?.code || firstError?.message || 'error'}). ` +
+          `Tap “Upload all” again to retry — finished files won't be sent twice.${skipNote}`;
+      if (cancelRequested) logLine('upload cancelled');
     }
   } finally {
+    uploading = false;
+    cancelRequested = false;
+    $('#clearBtn').textContent = 'Clear';
+    $('#clearBtn').disabled = false;
     btn.disabled = false;
     $('#barWrap').hidden = true;
     $('#bar').style.width = '0';
     try { await wakeLock?.release(); } catch {}
+  }
+});
+
+// "Copy details": the whole log as text, so it can be pasted into a message from a phone.
+$('#copyLog')?.addEventListener('click', async () => {
+  const text = `${navigator.userAgent}\n${location.href}\n\n${$('#log').textContent}`;
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('Details copied — paste them into your message.');
+  } catch {
+    const range = document.createRange();             // fallback: select it so it can be copied by hand
+    range.selectNodeContents($('#log'));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    toast('Text selected — tap Copy.');
   }
 });
 
