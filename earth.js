@@ -7,9 +7,6 @@ let rotationX = 0;
 let rotationY = 0;
 let rotationSpeedX = 0;
 let rotationSpeedY = 0;
-let isDragging = false;
-let prevMouseX = 0;
-let prevMouseY = 0;
 let zoom = 1;
 
 // Intro: the earth starts a bit smaller and eases up to full size once the page is ready.
@@ -27,12 +24,7 @@ function preload() {
 
 function setup() {
   const canvas = createCanvas(windowWidth, windowHeight, WEBGL);
-  canvas.mousePressed(() => {
-    isDragging = true;
-    prevMouseX = mouseX;
-    prevMouseY = mouseY;
-  });
-  canvas.mouseReleased(() => (isDragging = false));
+  setupPointers(canvas.elt);
   colorMode(HSB, 360, 100, 100);
   noStroke();
   for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
@@ -56,12 +48,6 @@ function draw() {
     if (t >= 1) introActive = false;
   }
 
-  if (isDragging) {
-    rotationSpeedY = (mouseX - prevMouseX) * 0.003;
-    rotationSpeedX = (mouseY - prevMouseY) * 0.003;
-    prevMouseX = mouseX;
-    prevMouseY = mouseY;
-  }
   rotationY += rotationSpeedY;
   rotationX += rotationSpeedX;
   rotationSpeedX *= 0.95; // 摩擦减速
@@ -141,6 +127,47 @@ class Particle {
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
+}
+
+// Mouse, finger and pen all go through Pointer Events: one finger (or the mouse) drags to spin the earth,
+// two fingers pinch to zoom. Spinning keeps going a little after letting go.
+const pointers = new Map();   // id → { x, y }
+let pinchStart = null;        // { dist, zoom }
+
+function setupPointers(el) {
+  el.style.touchAction = 'none';
+  const dist = () => { const [a, b] = [...pointers.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  el.addEventListener('pointerdown', (e) => {
+    el.setPointerCapture?.(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    introActive = false;
+    rotationSpeedX = rotationSpeedY = 0;
+    if (pointers.size === 2) pinchStart = { dist: dist(), zoom };
+  });
+  el.addEventListener('pointermove', (e) => {
+    const p = pointers.get(e.pointerId);
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (pointers.size >= 2 && pinchStart) {
+      zoom = constrain(pinchStart.zoom * dist() / pinchStart.dist, 0.5, 2.5);
+    } else if (pointers.size === 1) {
+      // Fingers move further than a mouse for the same intent, so touch is a bit gentler.
+      const k = e.pointerType === 'touch' ? 0.004 : 0.003;
+      rotationY += dx * k; rotationX += dy * k;
+      rotationSpeedY = dx * k; rotationSpeedX = dy * k;
+    }
+  });
+  const up = (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchStart = null;
+    // After a pinch, the remaining finger shouldn't fling the earth.
+    if (pointers.size === 1) rotationSpeedX = rotationSpeedY = 0;
+  };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  // Safari's own pinch-to-zoom-the-page gestures.
+  ['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, (e) => e.preventDefault(), { passive: false }));
 }
 
 function mouseWheel(event) {

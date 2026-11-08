@@ -44,38 +44,40 @@
         <a class="back" href="#/" data-icon="chevron-left" aria-label="返回"></a>
         <h1 class="page-title">添加到档案</h1>
       </div>
-      <p class="hint">
-        选择照片和视频。文件里有拍摄日期和地点的话会自动读出来，同一天的照片会合成一条记录。
-        上传前都可以修改。照片会为网站压缩，原图请继续保存在 iCloud。
-      </p>
-
       <label class="drop" id="drop">
         <input type="file" id="files" multiple accept="image/*,video/*">
         <span class="drop-icon" data-icon="upload"></span>
-        <span id="dropText">选择照片和视频，或拖到这里</span>
+        <span class="drop-title" id="dropText">选择照片和视频</span>
+        <span class="drop-sub">日期和地点会自动读取，同一天、同一地点的会合成一条</span>
       </label>
 
-      <div class="row">
-        <label>分类（全部）
-          <select class="field" id="bulkCategory"></select>
-        </label>
-        <label>标签（全部，用逗号分隔）
-          <input class="field" id="bulkTags" placeholder="夏天, 纽约">
-        </label>
-      </div>
-      <div class="row">
-        <label class="toggle"><input type="checkbox" id="groupByDay" checked> 同一天的照片合成一条记录</label>
+      <details class="add-settings">
+        <summary><span data-icon="edit"></span> 设置</summary>
+        <div class="row">
+          <label>分类（全部）
+            <select class="field" id="bulkCategory"></select>
+          </label>
+          <label>标签（全部，用逗号分隔）
+            <input class="field" id="bulkTags" placeholder="夏天, 纽约">
+          </label>
+        </div>
+        <label class="toggle"><input type="checkbox" id="groupByDay" checked> 同一天、同一地点的照片合成一条</label>
         <label class="toggle"><input type="checkbox" id="autoAi" checked> <span class="inline-icon" data-icon="sparkle"></span> 让 AI 填写标题、标签和分类</label>
-      </div>
+      </details>
 
       <div class="groups" id="groups"></div>
 
-      <div class="row" id="uploadRow" hidden>
-        <button class="btn primary" id="uploadBtn">全部上传</button>
-        <button class="btn" id="clearBtn">清空</button>
+      <div class="upload-dock" id="uploadRow" hidden>
+        <div class="dock-status">
+          <span class="dock-summary" id="dockSummary"></span>
+          <span class="progress" id="progress"></span>
+          <div class="bar" id="barWrap" hidden><i id="bar"></i></div>
+        </div>
+        <div class="dock-buttons">
+          <button class="btn" id="clearBtn">清空</button>
+          <button class="btn primary" id="uploadBtn">全部上传</button>
+        </div>
       </div>
-      <div class="progress" id="progress"></div>
-      <div class="bar" id="barWrap" hidden><i id="bar"></i></div>
 
       <details class="log">
         <summary>详细记录：读取和上传情况</summary>
@@ -83,7 +85,7 @@
         <pre id="log"></pre>
       </details>
 
-      <p class="legal">
+      <p class="legal">照片会为网站压缩，原图请继续保存在 iCloud。<br>
         AI 建议受 reCAPTCHA 保护，适用 Google
         <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">隐私权政策</a>和
         <a href="https://policies.google.com/terms" target="_blank" rel="noopener">服务条款</a>。

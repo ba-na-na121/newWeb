@@ -760,7 +760,8 @@ function entryPage(id) {
     (p.tags || []).length > 0 && h('div', { class: 'tags' },
       p.tags.map(t => h('a', { class: 'tag', href: `#/search/${encodeURIComponent('#' + t)}`, text: t }))),
     owner && h('div', { class: 'entry-actions' },
-      h('button', { class: 'pill-btn', type: 'button', onclick: () => editForm(p, body) }, icon('edit'), '编辑'),
+      h('button', { class: 'pill-btn', type: 'button', onclick: () => addPhotosToEntry(p) }, icon('plus'), '添加照片'),
+      h('button', { class: 'pill-btn ghost', type: 'button', onclick: () => editForm(p, body) }, icon('edit'), '编辑'),
       h('button', { class: 'pill-btn ghost', type: 'button', onclick: () => removeEntry(p) }, icon('trash'), '删除')));
 
   const others = posts.filter(x => x.id !== p.id && catsOf(x).includes(cat)).sort(byNewest).slice(0, 9);
@@ -1286,7 +1287,7 @@ function clearGroups() {
 }
 
 let pendingItems = [];
-async function addFiles(files) {
+async function addFiles(files, into = null) {
   files = files.filter(f => /^(image|video)\//.test(f.type) || isHeic(f));
   if (!files.length) return;
   // Originals up to 4 GB are fine: they get compressed before upload.
@@ -1313,7 +1314,7 @@ async function addFiles(files) {
       : frame ? URL.createObjectURL(frame)
         : file.type.startsWith('video/') ? URL.createObjectURL(file) : null;
     if (gen !== readGen) { if (preview) URL.revokeObjectURL(preview); return; }
-    pendingItems.push({ file, meta, shrunk, frame, preview });
+    pendingItems.push({ file, meta, shrunk, frame, preview, into });
     readCount++;
     $('#progress').textContent = readCount < files.length ? `正在读取 ${readCount}/${files.length}…` : '';
     logLine(`读取 ${file.name} · ${file.type || '无类型'} · ${mb(file.size)} · 日期 ${meta.date}（来源：${{ photo: '照片信息', video: '视频信息', file: '文件日期' }[meta.dateSource]}）` +
@@ -1330,39 +1331,100 @@ async function addFiles(files) {
   if ($('#autoAi').checked) groups.filter(g => !g.aiDone).forEach(g => suggest(g, { auto: true }));
 }
 
+// Distance in km between two GPS points.
+function km(a, b) {
+  const R = 6371, rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+const SAME_PLACE_KM = 1.5;
+
+// An archive entry from the same day and the same place, so new photos can join it instead.
+function matchingEntry(date, gps) {
+  if (!gps) return null;
+  return posts.find(p => entryDate(p) === date && p.place?.lat != null && km(p.place, gps) < SAME_PLACE_KM) || null;
+}
+
+let itemSeq = 0;
 function regroup() {
   const old = new Map(groups.map(g => [g.key, g]));
   const all = [...groups.flatMap(g => g.items), ...pendingItems];
   pendingItems = [];
-  const byDay = $('#groupByDay').checked;
+  const together = $('#groupByDay').checked;
   const map = new Map();
-  all.forEach((it, i) => {
-    const key = byDay ? it.meta.date : `${it.meta.date}#${i}`;
-    if (!map.has(key)) map.set(key, []);
-    map.get(key).push(it);
-  });
-  groups = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([key, items]) => {
-    const prev = old.get(key);
-    const gps = items.find(i => i.meta.lat != null)?.meta || all.find(i => i.meta.date === items[0].meta.date && i.meta.lat != null)?.meta;
-    return prev && prev.items.length === items.length ? prev : {
-      key, items,
-      date: items[0].meta.date,
-      title: prev?.title || '', text: prev?.text || '',
-      categories: prev?.categories || [], tags: prev?.tags || [],
-      place: gps ? { lat: gps.lat, lng: gps.lng, name: prev?.place?.name || '' } : (prev?.place || null),
-      aiDone: prev?.aiDone || false,
-    };
-  });
+  const put = (key, it) => { if (!map.has(key)) map.set(key, []); map.get(key).push(it); };
+  const clusters = new Map();   // date → [{ lat, lng, key }]
+  const noGps = [];
+  for (const it of all) {
+    it.uid ??= ++itemSeq;
+    const d = it.meta.date;
+    if (it.into) put(it.into, it);                         // added to a particular group or entry
+    else if (!together) put(`${d}#${it.uid}`, it);
+    else if (it.meta.lat != null) {
+      const list = clusters.get(d) || [];
+      let cl = list.find(x => km(x, it.meta) < SAME_PLACE_KM);
+      if (!cl) {
+        cl = { lat: it.meta.lat, lng: it.meta.lng, key: `${d}@${it.meta.lat.toFixed(3)},${it.meta.lng.toFixed(3)}` };
+        list.push(cl); clusters.set(d, list);
+      }
+      put(cl.key, it);
+    } else noGps.push(it);
+  }
+  // Photos without a location join that day's group (the first place of the day), or get their own.
+  for (const it of noGps) put(clusters.get(it.meta.date)?.[0]?.key || `${it.meta.date}@-`, it);
+
+  groups = [...map.entries()]
+    .sort((x, y) => (y[0].startsWith('entry:') - x[0].startsWith('entry:')) || y[0].localeCompare(x[0]))
+    .map(([key, items]) => {
+      const prev = old.get(key);
+      if (prev) { prev.items = items; return prev; }
+      const target = key.startsWith('entry:') ? posts.find(p => p.id === key.slice(6)) : null;
+      const gps = items.find(i => i.meta.lat != null)?.meta;
+      const date = target ? entryDate(target) : items[0].meta.date;
+      const match = target || matchingEntry(date, gps);
+      return {
+        key, items, date,
+        title: '', text: '', categories: [], tags: [],
+        place: gps ? { lat: gps.lat, lng: gps.lng, name: '' } : null,
+        mergeInto: match?.id || null,        // add to this existing entry instead of making a new one
+        pinned: !!target,                    // came from "添加照片" on an entry
+        aiDone: !!match,                     // nothing for the AI to fill in when adding to an entry
+      };
+    });
   renderGroups();
 }
 
 function renderGroups() {
-  $('#uploadRow').hidden = !groups.length;
-  $('#dropText').textContent = groups.length
-    ? `${groups.reduce((n, g) => n + g.items.length, 0)} 个文件已选好，点这里继续添加`
-    : '选择照片和视频，或拖到这里';
+  const files = groups.reduce((n, g) => n + g.items.length, 0);
+  const merges = groups.filter(g => g.mergeInto).length;
+  $('#dropText').textContent = groups.length ? '继续添加照片和视频' : '选择照片和视频';
+  $('#dockSummary').textContent = groups.length
+    ? `${groups.length - merges ? `${groups.length - merges} 条新记录` : ''}${groups.length - merges && merges ? ' · ' : ''}${merges ? `加到 ${merges} 条已有记录` : ''} · ${files} 个文件`
+    : '';
   $('#groups').replaceChildren(...groups.map(groupEl));
+  updateDock();
 }
+// The bottom bar shows while there's something to upload or a message to read.
+function updateDock() { $('#uploadRow').hidden = !groups.length && !uploading && !$('#progress').textContent; }
+new MutationObserver(updateDock).observe($('#progress'), { childList: true, characterData: true, subtree: true });
+
+// One hidden file picker for "add to this group" and "add photos to this entry".
+const morePicker = h('input', { type: 'file', multiple: true, accept: 'image/*,video/*', hidden: true });
+document.body.append(morePicker);
+let pickTarget = null;
+function pickMore(target) {
+  pickTarget = target;
+  morePicker.value = '';
+  morePicker.click();
+}
+morePicker.addEventListener('change', () => {
+  const files = [...morePicker.files];
+  if (!files.length || !pickTarget) return;
+  if (location.hash !== '#/add') location.hash = '#/add';
+  addFiles(files, pickTarget);
+});
+function addPhotosToEntry(p) { pickMore(`entry:${p.id}`); }
 
 function groupEl(g) {
   const bind = (el, key, map = (v) => v) => {
@@ -1370,33 +1432,83 @@ function groupEl(g) {
     return el;
   };
   const heic = g.items.filter(i => isHeic(i.file) && !i.shrunk).length; // HEIC we couldn't decode
-  const dateGuessed = g.items.every(i => i.meta.dateSource === 'file');
+  const dateGuessed = !g.mergeInto && g.items.every(i => i.meta.dateSource === 'file');
   // iPhones remove location from photos picked in a web page unless it's switched on in the picker.
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  const noPlace = isIOS && g.items.some(i => i.shrunk) && g.items.every(i => i.meta.lat == null);
-  return h('div', { class: 'group' },
-    h('div', { class: 'group-head' },
-      bind(h('input', { class: 'field', type: 'date', value: g.date }), 'date'),
-      g.place?.lat != null && h('span', { class: 'gps' }, icon('pin'), `${g.place.lat}, ${g.place.lng}`),
-      h('button', {
-        class: 'btn small ai', disabled: !!g.aiBusy, 'aria-label': '让 AI 填写',
+  const noPlace = !g.mergeInto && isIOS && g.items.some(i => i.shrunk) && g.items.every(i => i.meta.lat == null);
+  const target = g.mergeInto ? posts.find(p => p.id === g.mergeInto) : null;
+  const match = target || (!g.pinned && matchingEntry(g.date, g.place?.lat != null ? g.place : null));
+  const busy = uploading;
+  // Look up the city once per group so the pill can say "纽约" instead of just "has a location".
+  if (g.place?.lat != null && !g.city && !g.cityAsked) {
+    g.cityAsked = true;
+    reverseCity(g.place.lat, g.place.lng).then(city => { if (city) { g.city = city; renderGroups(); } });
+  }
+  const placeText = g.placeName || g.place?.name || g.city || (g.place?.lat != null ? '有位置' : '');
+
+  const head = h('div', { class: 'group-head' }, h('div', { class: 'group-when' },
+    target
+      ? h('span', { class: 'group-date', text: fmtDate(g.date) })
+      : (() => {
+        // Show "2026年3月10日"; tapping it opens the phone's date picker.
+        const label = h('span', { text: fmtDate(g.date) });
+        const input = h('input', { class: 'group-date-input', type: 'date', value: g.date, 'aria-label': '日期' });
+        input.addEventListener('change', () => { if (input.value) { g.date = input.value; label.textContent = fmtDate(g.date); } });
+        return h('label', { class: 'group-date' }, label, input);
+      })(),
+    h('span', { class: 'group-place' + (placeText ? '' : ' none') }, icon('pin'), placeText || '没有位置')),
+    h('span', { class: 'group-tools' },
+      !target && h('button', {
+        class: 'chip-btn ai', type: 'button', disabled: !!g.aiBusy || busy, 'aria-label': '让 AI 填写',
         onclick: () => suggest(g),
-      }, icon('sparkle'), g.aiBusy ? '思考中…' : 'AI 填写'),
-      h('span', { class: 'count', text: `${g.items.length} 个文件` }),
+      }, icon('sparkle'), g.aiBusy ? '思考中…' : 'AI'),
       h('button', {
-        class: 'btn small icon-only', 'aria-label': '移除这一条',
+        class: 'chip-btn icon-only', type: 'button', 'aria-label': '移除这一组', disabled: busy,
         onclick: () => { groups = groups.filter(x => x !== g); renderGroups(); },
-      }, icon('close'))),
-    h('div', { class: 'thumbs' }, g.items.map(thumbWithProgress)),
-    noPlace && h('p', { class: 'hint', text: '没有位置信息：iPhone 默认不提供。在选照片的界面点顶部的“选项”，打开“位置”，再重新选一次。' }),
+      }, icon('close'))));
+
+  // Same day + same place as something already in the archive: offer to add to it.
+  const mergeBox = match && h('div', { class: 'merge' + (target ? ' on' : '') },
+    coverSrc(match) ? h('img', { src: coverSrc(match), alt: '' }) : h('span', { class: 'merge-ph' }),
+    h('div', { class: 'merge-text' },
+      h('b', { text: target ? `加到「${entryTitle(match) || fmtDate(entryDate(match))}」` : `同一天、同一地点已有「${entryTitle(match) || '一条记录'}」` }),
+      h('small', { text: target ? `原有 ${(match.files || []).length} 个，新加 ${g.items.length} 个` : '可以把这些照片加进去，不另建一条' })),
+    !g.pinned && h('button', {
+      class: 'chip-btn', type: 'button', disabled: busy,
+      onclick: () => { g.mergeInto = target ? null : match.id; g.aiDone = !!g.mergeInto; renderGroups(); },
+    }, target ? '改为新建' : '加进去'));
+
+  const thumbs = h('div', { class: 'thumbs' },
+    g.items.map(i => {
+      const t = thumbWithProgress(i);
+      if (!busy && !i.record) t.append(h('button', {
+        class: 'tw-x', type: 'button', 'aria-label': `移除 ${i.file.name}`,
+        onclick: () => {
+          g.items = g.items.filter(x => x !== i);
+          if (!g.items.length) groups = groups.filter(x => x !== g);
+          i.preview && URL.revokeObjectURL(i.preview);
+          renderGroups();
+        },
+      }, icon('close')));
+      return t;
+    }),
+    !busy && h('button', { class: 'tw tw-add', type: 'button', 'aria-label': '往这一组添加照片', onclick: () => pickMore(g.key) },
+      icon('plus'), h('span', { text: '添加' })));
+
+  return h('div', { class: 'group' + (target ? ' merging' : ''), 'data-date': g.date },
+    head,
+    mergeBox,
+    thumbs,
+    noPlace && h('p', { class: 'hint', text: '没有位置信息：iPhone 默认不提供。在选照片的界面点顶部的“选项”，打开“位置”，再重新选一次；或者在下面填上地点。' }),
     dateGuessed && h('p', { class: 'hint warn' }, icon('alert'), h('span', { text: '找不到拍摄时间，现在显示的是文件日期，上传前请检查。' })),
     heic > 0 && h('p', { class: 'hint', text: `有 ${heic} 张 HEIC 照片打不开。请重试，或在 iCloud 里导出为 JPEG（“兼容性最佳”）。` }),
-    bind(h('input', { class: 'field', value: g.title, placeholder: '标题', style: 'width:100%;margin-bottom:8px' }), 'title'),
-    bind(h('textarea', { class: 'field', placeholder: '发生了什么？（可不填）', value: g.text }), 'text'),
-    catPicker(g.categories, (v) => { g.categories = v; }),
-    h('div', { class: 'line' },
-      bind(h('input', { class: 'field', value: g.tags.join(', '), placeholder: '标签' }), 'tags', parseTags),
-      bind(h('input', { class: 'field', value: g.placeName ?? g.place?.name ?? '', placeholder: '地点' }), 'placeName')));
+    !target && h('div', { class: 'group-fields' },
+      bind(h('input', { class: 'field title-field', value: g.title, placeholder: '标题', 'aria-label': '标题' }), 'title'),
+      bind(h('textarea', { class: 'field', placeholder: '发生了什么？（可不填）', value: g.text, 'aria-label': '正文' }), 'text'),
+      catPicker(g.categories, (v) => { g.categories = v; }),
+      h('div', { class: 'line' },
+        bind(h('input', { class: 'field', value: g.placeName ?? g.place?.name ?? '', placeholder: '地点，如 迈阿密南海滩', 'aria-label': '地点' }), 'placeName'),
+        bind(h('input', { class: 'field', value: g.tags.join(', '), placeholder: '标签，用逗号分隔', 'aria-label': '标签' }), 'tags', parseTags))));
 }
 
 // ---------- AI (Gemini via Firebase AI Logic) ----------
@@ -1658,6 +1770,7 @@ $('#uploadBtn').addEventListener('click', async () => {
   $('#clearBtn').textContent = '取消';
   $('#clearBtn').disabled = false;
   document.querySelector('details.log')?.setAttribute('open', '');
+  renderGroups();
   $('#barWrap').hidden = false;
 
   // Keep the phone screen on while uploading: iPhones pause uploads when the screen locks.
@@ -1749,6 +1862,23 @@ $('#uploadBtn').addEventListener('click', async () => {
       if (failed) { firstError ||= failed.error; continue; }
       const files = g.items.map(i => i.record).filter(Boolean);
       if (!files.length) { saved.push(g); continue; } // everything was skipped
+      const existing = g.mergeInto && posts.find(p => p.id === g.mergeInto);
+      if (existing) {
+        const update = {
+          files: [...(existing.files || []), ...files],
+          tags: [...new Set([...(existing.tags || []), ...bulkTags])],
+        };
+        try {
+          await updateDoc(doc(db, 'posts', existing.id), update);
+          Object.assign(existing, update);
+          saved.push(g);
+          logLine(`✓ 已加到「${entryTitle(existing) || existing.id}」：${files.length} 个文件`);
+        } catch (err) {
+          console.error('Adding to entry failed:', err);
+          firstError ||= err;
+        }
+        continue;
+      }
       const placeName = (g.placeName ?? g.place?.name ?? '').trim();
       const found = g.place?.lat == null && placeName ? await findPlace(placeName) : null;
       const gps = g.place?.lat != null ? g.place : found;
@@ -1785,8 +1915,11 @@ $('#uploadBtn').addEventListener('click', async () => {
     renderArchive();
     if (!left.length) {
       clearGroups();   // (clears the status line too, so set the message after)
-      $('#progress').textContent = `完成，新增了 ${saved.length} 条记录。${skipNote}`;
-      setTimeout(() => showView('archive'), 700);
+      const merged = saved.filter(g => g.mergeInto);
+      $('#progress').textContent = `完成：${saved.length - merged.length ? `新增 ${saved.length - merged.length} 条记录` : ''}` +
+        `${saved.length - merged.length && merged.length ? '，' : ''}${merged.length ? `加到 ${merged.length} 条已有记录` : ''}。${skipNote}`;
+      const only = merged.length === 1 && saved.length === 1 ? merged[0].mergeInto : null;
+      setTimeout(() => only ? (location.hash = `#/entry/${only}`) : showView('archive'), 700);
     } else {
       groups = left;
       renderGroups();
@@ -1805,6 +1938,7 @@ $('#uploadBtn').addEventListener('click', async () => {
     $('#barWrap').hidden = true;
     $('#bar').style.width = '0';
     try { await wakeLock?.release(); } catch {}
+    renderGroups();   // bring back the add / remove buttons
   }
 });
 
