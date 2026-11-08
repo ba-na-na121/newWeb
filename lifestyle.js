@@ -11,7 +11,13 @@ const { ref, uploadBytesResumable, getDownloadURL, deleteObject } =
   await import(`${FB_SDK}/firebase-storage.js`);
 
 // ---------- Settings you may want to change ----------
-const CATEGORIES = ['Daily', 'Travel', 'Food', 'Friends', 'Creative', 'Study', 'Other'];
+// Plan A. The first category answers "what is in the photo" (content), an optional second one
+// answers "with whom / where" (occasion). See tidyCategories() for the rules.
+const CONTENT_CATS = ['Outfit', 'Food', 'Creative', 'Study', 'Daily'];
+const OCCASION_CATS = ['Love', 'Travel', 'Friends'];          // in order of priority
+const CATEGORIES = ['Daily', 'Outfit', 'Food', 'Love', 'Friends', 'Travel', 'Creative', 'Study'];
+// Home: anything shot within this distance is never "Travel".
+const HOME = { name: '纽约', lat: 40.7128, lng: -74.006, km: 80 };
 const AI_MODEL = 'gemini-3.5-flash-lite';   // Gemini model used for auto-tagging
 const DISPLAY_MAX = 2000;                   // longest side of the website copy, px
 const THUMB_MAX = 480;                      // longest side of grid thumbnails, px
@@ -118,18 +124,39 @@ document.querySelectorAll('[data-icon]').forEach(el => el.prepend(icon(el.datase
 
 // ---------- Colours: one per category (black text sits on these) ----------
 const CATEGORY_COLORS = {
-  Daily: '#FFD43B', Travel: '#7C9CF0', Food: '#FF8A3D', Friends: '#FFB8EC',
-  Creative: '#B9A8FF', Study: '#93AE6B', Other: '#C8B9B3',
+  Daily: '#FFD43B', Outfit: '#5FD3C6', Food: '#FF8A3D', Love: '#FF5A6E', Friends: '#FFB8EC',
+  Travel: '#7C9CF0', Creative: '#B9A8FF', Study: '#93AE6B', Other: '#C8B9B3',
 };
 const SAVED_COLOR = '#F3EFE6';
 const CATEGORY_LABELS = {
-  Daily: '日常', Travel: '旅行', Food: '美食', Friends: '朋友', Creative: '创作', Study: '学习', Other: '其他', Saved: '收藏',
+  Daily: '日常', Outfit: '穿搭', Food: '美食', Love: '恋爱', Friends: '朋友', Travel: '旅行',
+  Creative: '创作', Study: '学习', Other: '日常', Saved: '收藏',
 };
 const labelOf = (cat) => CATEGORY_LABELS[cat] || cat;
 const BAND_COLORS = ['#FFD43B', '#C8B9B3', '#FFB8EC', '#7C9CF0', '#93AE6B', '#FF8A3D', '#B9A8FF'];
 // An entry can sit in several folders (a trip with friends → 旅行 + 朋友). The first one is the main
 // category: it sets the entry's colour. Older entries only have "category".
-const catsOf = (p) => (p.categories?.length ? p.categories : [p.category || 'Other']);
+const catsOf = (p) => [...new Set((p.categories?.length ? p.categories : [p.category || 'Daily'])
+  .map(c => (c === 'Other' ? 'Daily' : c)))];   // the old "其他" now counts as 日常
+
+// km is defined further down; function declarations are hoisted so this is fine.
+const atHome = (gps) => gps?.lat != null && km(gps, HOME) < HOME.km;
+
+// The category rules, applied to every AI answer (and the one-time re-sort):
+//  1. At most two: one "what" (穿搭/美食/创作/学习/日常) first, then one "with whom / where" (恋爱/旅行/朋友).
+//  2. Anything shot at home (纽约) is never 旅行.
+//  3. 日常 only when no other "what" fits; it's dropped if a more specific one is there.
+//  4. 恋爱 wins over 朋友 (a date isn't a friends' outing).
+function tidyCategories(list, gps) {
+  let c = [...new Set((list || []).map(x => (x === 'Other' ? 'Daily' : x)).filter(x => CATEGORIES.includes(x)))];
+  if (atHome(gps)) c = c.filter(x => x !== 'Travel');
+  const content = c.filter(x => CONTENT_CATS.includes(x));
+  const what = content.find(x => x !== 'Daily') || content[0] || null;
+  const occasion = OCCASION_CATS.find(x => c.includes(x)) || null;
+  const out = [what, occasion].filter(Boolean);
+  return out.length ? out : ['Daily'];
+}
+window.__rules = { tidyCategories };   // lets the self-tests check the rules directly
 const catOf = (p) => catsOf(p)[0];
 
 // Short city name shown before card titles ("迈阿密 · 海边日落").
@@ -484,7 +511,10 @@ function foldersRoot() {
     h('div', { class: 'folders' },
       savedList.length > 0 && folderEl('Saved', savedList, SAVED_COLOR, 'star'),
       order.filter(c => byCat.has(c)).map(c => folderEl(c, byCat.get(c), colorOf(c)))),
-  ];
+    owner && posts.length > 0 && h('div', { class: 'resort' },
+      h('button', { class: 'chip-btn', type: 'button', onclick: (e) => resortAll(e.currentTarget) }, icon('sparkle'), '按新规则重新分类'),
+      h('small', { text: '用 AI 按「拍的是什么 + 和谁/在哪」重新整理全部记录；在纽约拍的不会再算旅行。' })),
+  ].filter(Boolean);
 }
 
 function folderPage(name) {
@@ -1512,9 +1542,35 @@ function groupEl(g) {
 }
 
 // ---------- AI (Gemini via Firebase AI Logic) ----------
+// The category rules as the AI reads them. Kept next to tidyCategories(), which enforces them afterwards.
+function CATEGORY_RULES(gps) {
+  const where = gps == null ? 'Location unknown: only use Travel if the photos clearly show another city or country.'
+    : atHome(gps) ? `These were taken in ${HOME.name} (New York), where the owner lives. Never use Travel.`
+      : `These were taken about ${Math.round(km(gps, HOME))} km from the owner's home in New York.`;
+  return [
+    '- categories: pick by these rules (use the English keys).',
+    '  First, exactly one for WHAT is in the photos:',
+    '    Outfit = clothes are the subject: outfit of the day, mirror selfie, new clothes/shoes/bags.',
+    '    Food = food or drinks are the subject: restaurant dishes, coffee, cooking.',
+    '    Creative = something the owner made: drawings, models, design work, work in progress.',
+    '    Study = school, classes, homework, campus (Parsons).',
+    '    Daily = everyday life that is none of the above: streets, sky, home, commute.',
+    '  Then, optionally one for WHO / WHERE, only if it clearly applies:',
+    '    Love = with a romantic partner: dates, anniversaries, couple photos.',
+    '    Travel = a trip away from home.',
+    '    Friends = with friends (not a partner).',
+    `  ${where}`,
+    '  Examples: dinner with friends in New York → [Food, Friends]; ramen in Tokyo → [Food, Travel];',
+    '  outfit for a date → [Outfit, Love]; a street in New York → [Daily].',
+  ];
+}
 let modelPromise = null;
-async function getModel() {
-  modelPromise ||= (async () => {
+let sortModelPromise = null;
+async function getModel(kind = 'entry') {
+  if (kind === 'sort') return (sortModelPromise ||= makeModel('sort'));
+  return (modelPromise ||= makeModel('entry'));
+}
+async function makeModel(kind) {
     const aiApp = await withTimeout(getAiApp(), 20000, 'App Check（reCAPTCHA）没有响应');
     const { getAI, getGenerativeModel, GoogleAIBackend, Schema } = await import(`${FB_SDK}/firebase-ai.js`);
     const ai = getAI(aiApp, { backend: new GoogleAIBackend() });
@@ -1522,7 +1578,13 @@ async function getModel() {
       model: AI_MODEL,
       generationConfig: {
         responseMimeType: 'application/json',
-        responseSchema: Schema.object({
+        responseSchema: kind === 'sort' ? Schema.object({
+          properties: {
+            items: Schema.array({ items: Schema.object({ properties: {
+              id: Schema.string(), categories: Schema.array({ items: Schema.string() }),
+            } }) }),
+          },
+        }) : Schema.object({
           properties: {
             title: Schema.string(),
             caption: Schema.string(),
@@ -1534,8 +1596,6 @@ async function getModel() {
         }),
       },
     });
-  })();
-  return modelPromise;
 }
 
 const blobToBase64 = (blob) => new Promise((res, rej) => {
@@ -1577,7 +1637,7 @@ async function suggest(g, { auto = false } = {}) {
       'Return JSON with:',
       '- title: 4 to 12 Chinese characters, specific to what is shown.',
       '- caption: one or two plain sentences describing the moment. Do not invent names of people.',
-      `- categories: 1 or 2 of ${CATEGORIES.join(', ')}, best fit first. Add a second only when it clearly also fits (a trip with friends → Travel, Friends; a meal while traveling → Travel, Food).`,
+      ...CATEGORY_RULES(g.place?.lat != null ? g.place : null),
       '- city: the short city name only, in Simplified Chinese when it has a common Chinese name (迈阿密, 纽约, 东京), else empty.',
       '- tags: 3 to 8 short lowercase tags (things, activities, mood, season).',
       '- place: if GPS is given, the neighborhood and city it points to; otherwise a clearly recognizable landmark or city, else an empty string.',
@@ -1591,9 +1651,10 @@ async function suggest(g, { auto = false } = {}) {
     if (!g.text && out.caption) g.text = out.caption.trim();
     const pick = $('#bulkCategory').value;
     if (!g.categories.length) {
-      const ai = (out.categories || []).filter(c => CATEGORIES.includes(c)).slice(0, 2);
-      g.categories = [...new Set([pick, ...ai].filter(Boolean))];
-      if (!g.categories.length) g.categories = ['Other'];
+      const gps = g.place?.lat != null ? g.place : null;
+      g.categories = pick ? tidyCategories([pick, ...(out.categories || [])], gps).filter((x, i, a) => a.indexOf(x) === i)
+        : tidyCategories(out.categories, gps);
+      if (pick && !g.categories.includes(pick)) g.categories = [pick, ...g.categories].slice(0, 2);
     }
     if (out.city && !g.city) g.city = out.city.trim();
     g.tags = [...new Set([...g.tags, ...parseTags($('#bulkTags').value), ...parseTags((out.tags || []).join(','))])];
@@ -1617,6 +1678,51 @@ async function suggest(g, { auto = false } = {}) {
   } finally {
     g.aiBusy = false;
     renderGroups();
+  }
+}
+
+// ---------- Re-sort every entry with the current rules (owner only) ----------
+// Text only (title, note, tags, place), 30 entries per AI call, so even hundreds of entries cost well under a cent.
+async function resortAll(btn) {
+  if (!confirm(`用新规则重新分类全部 ${posts.length} 条记录？你手动选的分类也可能被改。`)) return;
+  btn.disabled = true;
+  const aiOk = AI_HOSTS.includes(location.hostname);
+  const answers = new Map();
+  try {
+    if (aiOk) {
+      const model = await getModel('sort');
+      for (let i = 0; i < posts.length; i += 30) {
+        btn.lastChild.textContent = `正在分类 ${Math.min(i + 30, posts.length)} / ${posts.length}…`;
+        const chunk = posts.slice(i, i + 30);
+        const lines = chunk.map(p => {
+          const where = p.place?.lat == null ? 'location unknown' : atHome(p.place) ? 'at home (New York)' : `${Math.round(km(p.place, HOME))} km from home`;
+          return JSON.stringify({ id: p.id, date: entryDate(p), title: entryTitle(p), note: (p.text || '').slice(0, 160),
+            tags: p.tags || [], place: [p.place?.name, cityOf(p)].filter(Boolean).join(' / '), where, now: catsOf(p) });
+        });
+        const prompt = [
+          'Re-sort these entries of a personal life archive into categories. Return items: [{id, categories}] for every entry.',
+          ...CATEGORY_RULES(undefined).filter(l => !l.includes('Location unknown')),
+          '  Each entry says where it was taken: an entry "at home (New York)" is never Travel.',
+          'ENTRIES:', ...lines,
+        ].join('\n');
+        const result = await withTimeout(model.generateContent(prompt), 60000, 'AI 响应超时');
+        for (const it of JSON.parse(result.response.text()).items || []) answers.set(it.id, it.categories);
+      }
+    }
+    let changed = 0;
+    for (const p of posts) {
+      const next = tidyCategories(answers.get(p.id) || catsOf(p), p.place);
+      if (next.join() === catsOf(p).join() && p.category === next[0]) continue;
+      await updateDoc(doc(db, 'posts', p.id), { category: next[0], categories: next });
+      p.category = next[0]; p.categories = next;
+      changed++;
+    }
+    toast(aiOk ? `完成：${changed} 条记录的分类改了。` : `AI 只能在正式网站用；已按规则修好 ${changed} 条（去掉在纽约的“旅行”等）。`, 6000);
+    route();
+  } catch (err) {
+    console.error('Re-sort failed:', err);
+    toast('重新分类没有完成：' + String(err?.code || err?.message || err).slice(0, 120), 7000);
+    btn.disabled = false;
   }
 }
 

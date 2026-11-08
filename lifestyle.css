@@ -652,3 +652,7 @@ label.group-date::after { content: ''; width: 7px; height: 7px; margin-left: 8px
 
 /* Keep messages above the upload bar so they never cover its buttons */
 body:has(#addView:not([hidden]) #uploadRow:not([hidden])) .toast { bottom: calc(max(24px, env(safe-area-inset-bottom)) + 84px); }
+
+/* Owner tool under the folders: re-sort with the current rules */
+.resort { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: 28px 0 8px; }
+.resort small { font-size: 12px; color: var(--ink-2); max-width: 40em; }
