@@ -2,69 +2,71 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#000000">
   <title>Lifestyle · Wenzuo Xia</title>
   <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
   <link rel="stylesheet" href="lifestyle.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="topbar-inner">
-      <a class="brand" href="index.html">Wenzuo Xia<small>LIFE ARCHIVE</small></a>
-      <nav class="tabs">
-        <button class="tab active" data-view="archive">Archive</button>
-        <button class="tab" data-view="map">Map</button>
-        <button class="tab" data-view="add" id="addTab" hidden>+ Add</button>
-        <button class="tab quiet" id="logoutBtn">Log out</button>
-      </nav>
-    </div>
+    <a class="brand" href="index.html" aria-label="Back to the home page">Wenzuo Xia</a>
+    <nav class="actions" aria-label="Archive">
+      <a class="icon-btn" href="#/search" data-icon="search" aria-label="Search" title="Search"></a>
+      <a class="icon-btn" href="#/map" data-icon="map" aria-label="Map" title="Map"></a>
+      <a class="icon-btn add-btn" href="#/add" data-icon="plus" id="addTab" aria-label="Add photos" title="Add photos" hidden></a>
+      <button class="icon-btn" type="button" data-icon="logout" id="logoutBtn" aria-label="Log out" title="Log out"></button>
+    </nav>
   </header>
 
   <main>
-    <!-- ARCHIVE -->
-    <section id="archiveView">
-      <p class="stats" id="stats">Loading…</p>
-      <div class="filters">
-        <input class="field search" id="q" type="search" placeholder="Search text, tags, places…">
-        <select class="field" id="year"><option value="">All years</option></select>
-        <select class="field" id="category"><option value="">All categories</option></select>
-        <label class="toggle"><input type="checkbox" id="savedOnly"> ★ Saved</label>
-      </div>
-      <div class="chips" id="tagChips"></div>
-      <div id="timeline"></div>
+    <!-- BROWSE: folders, timeline, a folder, a year, a month, search, one entry (filled in by lifestyle.js) -->
+    <section id="browseView" aria-live="polite">
+      <p class="loading">Loading your archive…</p>
     </section>
 
     <!-- MAP -->
     <section id="mapView" hidden>
+      <div class="page-head">
+        <a class="back" href="#/" data-icon="chevron-left" aria-label="Back"></a>
+        <h1 class="page-title">Map</h1>
+      </div>
       <div id="map"></div>
     </section>
 
     <!-- ADD (owner only) -->
     <section id="addView" class="add" hidden>
-      <h2>Add to the archive</h2>
+      <div class="page-head">
+        <a class="back" href="#/" data-icon="chevron-left" aria-label="Back"></a>
+        <h1 class="page-title">Add to the archive</h1>
+      </div>
       <p class="hint">
-        Pick photos and videos. Dates and places are read from the photos when they have them,
+        Pick photos and videos. Dates and places are read from the files when they have them,
         and photos from the same day become one entry. You can change anything before uploading.
-        Photos are shrunk for the website — keep your originals in iCloud.
+        Photos are shrunk for the website, so keep your originals in iCloud.
       </p>
 
       <label class="drop" id="drop">
         <input type="file" id="files" multiple accept="image/*,video/*">
-        <span id="dropText">Tap to choose files, or drop them here</span>
+        <span class="drop-icon" data-icon="upload"></span>
+        <span id="dropText">Choose photos and videos, or drop them here</span>
       </label>
 
       <div class="row">
         <label>Category for all
           <select class="field" id="bulkCategory"></select>
         </label>
-        <label>Tags for all (comma separated)
-          <input class="field" id="bulkTags" placeholder="e.g. summer, nyc">
+        <label>Tags for all, separated by commas
+          <input class="field" id="bulkTags" placeholder="summer, nyc">
         </label>
       </div>
       <div class="row">
-        <label class="toggle"><input type="checkbox" id="groupByDay" checked> Same day → one entry</label>
-        <label class="toggle"><input type="checkbox" id="autoAi" checked> ✨ AI fills in title, tags and category</label>
+        <label class="toggle"><input type="checkbox" id="groupByDay" checked> Put photos from the same day in one entry</label>
+        <label class="toggle"><input type="checkbox" id="autoAi" checked> <span class="inline-icon" data-icon="sparkle"></span> Let AI fill in title, tags and category</label>
       </div>
 
       <div class="groups" id="groups"></div>
@@ -77,7 +79,7 @@
       <div class="bar" id="barWrap" hidden><i id="bar"></i></div>
 
       <details class="log">
-        <summary>Details — what was read and uploaded</summary>
+        <summary>Details: what was read and uploaded</summary>
         <button class="btn small" id="copyLog" type="button">Copy details</button>
         <pre id="log"></pre>
       </details>
