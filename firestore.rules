@@ -1,8 +1,9 @@
 rules_version = '2';
 
-// Lifestyle posts:
+// Lifestyle posts and Ideas:
 //  - anyone signed in (the shared friends account or you) can read
 //  - only the owner account can create, edit or delete
+// The shopping list and the AI's copies of idea pictures are owner-only.
 // Everything else in the database is closed.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -14,6 +15,19 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if request.auth != null;
       allow create, update, delete: if isOwner();
+    }
+
+    match /ideas/{ideaId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isOwner();
+    }
+
+    match /ideaSrc/{ideaId} {
+      allow read, write: if isOwner();
+    }
+
+    match /shopping/{ideaId} {
+      allow read, write: if isOwner();
     }
 
     match /{document=**} {

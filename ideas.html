@@ -1,212 +1,44 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>Ideas · Wenzuo Xia</title>
-  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
-  <style>
-    @font-face {
-      font-family: 'PixelFont';
-      src: url('fonts/headerFonts.otf') format('opentype');
-    }
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background: #000000;
-      color: white;
-      font-family: 'PixelFont', monospace;
-    }
-    canvas {
-      display: block;
-      margin: 0 auto;
-      image-rendering: pixelated;
-    }
-    #main-header {
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 48px;
-      cursor: pointer;
-      text-shadow: 2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000;
-      font-family: 'PixelFont', monospace;
-      animation: fadeIn 1s ease-out;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#000000">
+  <title>灵感 · Wenzuo Xia</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
+  <link rel="stylesheet" href="lifestyle.css">
+  <link rel="stylesheet" href="ideas.css">
 </head>
-<body>
-<header id="main-header" onclick="window.location.href='index.html'">Wenzuo Xia</header>
-<script>
-let dino;
-let groundY;
-let gravity = 1;
-let obstacles = [];
-let gameOver = false;
-let score = 0;
-let highScore = 0;
-let speed = 6;
+<body class="ideas-page">
+  <header class="topbar">
+    <a class="brand" href="index.html" aria-label="返回首页">Wenzuo Xia</a>
+    <nav class="actions" aria-label="灵感">
+      <a class="icon-btn" href="#/shopping" data-icon="bag" id="shopTab" aria-label="购物清单" title="购物清单" hidden></a>
+      <button class="icon-btn add-btn" type="button" data-icon="plus" id="addBtn" aria-label="上传灵感图" title="上传灵感图" hidden></button>
+      <button class="icon-btn" type="button" data-icon="logout" id="logoutBtn" aria-label="退出登录" title="退出登录"></button>
+    </nav>
+  </header>
 
-function setup() {
-  createCanvas(windowWidth, 200).position(0, 140);
-  groundY = height - 40;
-  dino = new Dino();
-}
+  <main>
+    <section id="view" aria-live="polite">
+      <p class="loading">正在加载灵感…</p>
+    </section>
+  </main>
 
-function draw() {
-  background(0);
-  fill(180);
-  rect(0, groundY, width, 2);
+  <!-- Upload progress (owner only) -->
+  <div class="tray" id="tray" hidden>
+    <div class="tray-head">
+      <b id="trayTitle">上传中</b>
+      <button class="chip-btn icon-only" type="button" id="trayClose" aria-label="收起" data-icon="close"></button>
+    </div>
+    <ul class="tray-list" id="trayList"></ul>
+  </div>
 
-  if (!gameOver) {
-    score += 0.1;
-  }
-
-  dino.update();
-  dino.show();
-
-  if (frameCount % 90 === 0 && !gameOver) {
-    obstacles.push(new Obstacle());
-  }
-
-  for (let i = obstacles.length - 1; i >= 0; i--) {
-    obstacles[i].update();
-    obstacles[i].show();
-
-    if (obstacles[i].hits(dino)) {
-      gameOver = true;
-    }
-
-    if (obstacles[i].offscreen()) {
-      obstacles.splice(i, 1);
-    }
-  }
-
-  fill(255);
-  textSize(28);
-  textAlign(LEFT);
-  push();
-  textFont('Courier New');
-  text("DISTANCE: " + floor(score), 20, 40);
-  pop();
-
-  push();
-  textFont('Courier New');
-  text("HIGHEST SCORE: " + floor(highScore), 250, 40);
-  pop();
-
-  if (gameOver) {
-    fill(255, 50, 50);
-    textSize(32);
-    textAlign(CENTER);
-    textFont('Courier New');
-    text("GAME OVER", width / 2, height / 2 + 30);
-    highScore = max(highScore, floor(score));
-  }
-}
-
-function keyPressed() {
-  if (key === ' ' || keyCode === UP_ARROW) {
-    if (gameOver) {
-      resetGame();
-    } else {
-      dino.jump();
-    }
-  }
-}
-
-function touchStarted() {
-  if (gameOver) {
-    resetGame();
-  } else {
-    dino.jump();
-  }
-}
-
-function resetGame() {
-  gameOver = false;
-  score = 0;
-  obstacles = [];
-  dino.reset();
-}
-
-class Dino {
-  constructor() {
-    this.r = 40;
-    this.x = 50;
-    this.y = groundY - this.r;
-    this.vy = 0;
-    this.jumpForce = 15;
-    this.grounded = true;
-  }
-
-  jump() {
-    if (this.grounded) {
-      this.vy = -this.jumpForce;
-      this.grounded = false;
-    }
-  }
-
-  reset() {
-    this.y = groundY - this.r;
-    this.vy = 0;
-    this.grounded = true;
-  }
-
-  update() {
-    this.vy += gravity;
-    this.y += this.vy;
-
-    if (this.y >= groundY - this.r) {
-      this.y = groundY - this.r;
-      this.vy = 0;
-      this.grounded = true;
-    }
-  }
-
-  show() {
-    fill(255);
-    rect(this.x, this.y, this.r, this.r);
-  }
-}
-
-class Obstacle {
-  constructor() {
-    this.w = random(20, 40);
-    this.h = random(30, 60);
-    this.x = width;
-    this.y = groundY - this.h;
-  }
-
-  update() {
-    this.x -= speed;
-  }
-
-  show() {
-    fill(200);
-    rect(this.x, this.y, this.w, this.h);
-  }
-
-  hits(dino) {
-    return (
-      dino.x + dino.r > this.x &&
-      dino.x < this.x + this.w &&
-      dino.y + dino.r > this.y
-    );
-  }
-
-  offscreen() {
-    return this.x + this.w < 0;
-  }
-}
-</script>
-</p>
-  <p style="position: absolute; top: calc(100% - 100px); width: 100%; text-align: center; color: white; font-family: 'Courier New', Courier, monospace; font-size: 16px; opacity: 0.7;">
-    This page is still under construction... maybe later.
-  </p>
+  <input type="file" id="files" multiple accept="image/*" hidden>
+  <script type="module" src="ideas.js"></script>
 </body>
 </html>
