@@ -483,7 +483,61 @@ textarea.field { resize: vertical; }
   .grid { gap: 18px 12px; }
 }
 
+/* ---------- 最近 reel ---------- */
+.reel {
+  --c: #FF3B30;
+  position: relative; display: block; overflow: hidden;
+  margin: 8px calc(var(--pad) * -1) 18px;
+  aspect-ratio: 5 / 4; max-height: 560px; width: calc(100% + var(--pad) * 2);
+  background: #0a0a0a; color: #fff; text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (min-width: 700px) { .reel { margin: 8px 0 22px; width: 100%; aspect-ratio: 21 / 9; border-radius: var(--r-lg); } }
+.reel-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+.reel-bg.in { animation: reelCut 0.5s steps(4, end) forwards; }
+@keyframes reelCut { 0% { opacity: 0; filter: brightness(2.2); } 50% { opacity: 1; filter: brightness(1.4); } 100% { opacity: 1; filter: none; } }
+.reel-shade { position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 70% 32% at 50% 47%, rgba(0,0,0,.42), rgba(0,0,0,0) 100%),
+    linear-gradient(to bottom, rgba(0,0,0,.45), rgba(0,0,0,0) 30%, rgba(0,0,0,0) 55%, rgba(0,0,0,.5)); }
+.reel-pips img {
+  position: absolute; aspect-ratio: 4 / 3; object-fit: cover;
+  box-shadow: 0 6px 24px rgba(0,0,0,.45);
+  animation: pip 0.18s steps(2, end);
+}
+@keyframes pip { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+.reel-word {
+  position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-62%);
+  text-align: center; padding: 0 6%;
+  font-weight: 800; font-stretch: 62%; line-height: 0.9; letter-spacing: 0;
+  font-size: clamp(48px, 16vw, 140px); white-space: nowrap; overflow: hidden; text-overflow: clip;
+  text-shadow: 0 0 1px rgba(0,0,0,.6), 0 2px 22px rgba(0,0,0,.55);
+  transition: letter-spacing .7s cubic-bezier(.2,.7,.2,1), font-stretch .7s;
+}
+.reel-word span { display: inline-block; white-space: pre; transition: opacity .12s steps(1); }
+.reel-word.flash { color: var(--c); }
+.reel-word.tracking { letter-spacing: 0.32em; font-stretch: 125%; overflow: visible; }
+.reel-word span.gone { opacity: 0; }
+.reel-sub {
+  position: absolute; left: 0; right: 0; top: calc(50% + clamp(18px, 4.5vw, 46px));
+  display: flex; justify-content: center; flex-wrap: wrap; gap: 0 12px; padding: 0 8%;
+  color: var(--c); font-size: clamp(12px, 3.2vw, 17px); font-weight: 700; font-stretch: 75%;
+  letter-spacing: .04em; text-shadow: 0 1px 8px rgba(0,0,0,.5);
+  opacity: 0; transition: opacity .25s steps(3);
+}
+.reel-sub.in { opacity: 1; }
+.reel-count { position: absolute; right: 16px; top: 22px; font-size: 12px; font-weight: 600; letter-spacing: .08em; font-variant-numeric: tabular-nums; opacity: .85; }
+.reel-label { position: absolute; left: 16px; top: 18px; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: rgba(0,0,0,.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.reel-bars { position: absolute; left: 16px; right: 16px; top: 8px; display: flex; gap: 4px; }
+.reel-bars i { flex: 1; height: 2px; border-radius: 2px; background: rgba(255,255,255,.3); overflow: hidden; }
+.reel-bars b { display: block; height: 100%; width: 0; background: #fff; }
+.reel-bars i.done b { width: 100%; }
+.reel-bars i.now b { animation: reelBar var(--dur, 6s) linear forwards; }
+@keyframes reelBar { to { width: 100%; } }
+
 @media (prefers-reduced-motion: reduce) {
+  .reel-bg { opacity: 1; }
+  .reel-bg.in, .reel-pips img, .reel-bars i.now b { animation: none; }
+  .reel-sub { opacity: 1; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 

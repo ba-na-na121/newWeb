@@ -134,7 +134,7 @@ const catOf = (p) => catsOf(p)[0];
 
 // Short city name shown before card titles ("迈阿密 · 海边日落").
 function cityOf(p) {
-  if (p.place?.city) return p.place.city;
+  if (p.place?.city) return cleanCity(p.place.city);
   const name = (p.place?.name || '').trim();
   if (!name) return '';
   const last = name.split(/[,，·]/).map(s => s.trim()).filter(Boolean).pop() || '';
@@ -296,8 +296,136 @@ function renderBrowse(name, rest) {
   if (name === 'timeline' && rest[0]) { v.replaceChildren(...yearPage(rest[0])); return requestAnimationFrame(fitBands); }
   const mode = name === 'timeline' || name === 'folders' ? name : getMode();
   setMode(mode);
-  v.replaceChildren(...(mode === 'timeline' ? timelineRoot() : foldersRoot()));
+  // Keep the reel playing if it's already on screen (e.g. the page refreshes after city names load).
+  const reel = v.querySelector(':scope > .reel') || (posts.length > 0 && reelEl());
+  v.replaceChildren(...[reel, ...(mode === 'timeline' ? timelineRoot() : foldersRoot())].filter(Boolean));
   requestAnimationFrame(fitBands);
+}
+
+// ---------- "最近" reel: the newest entries play like episodes ----------
+// Each episode: the photo cuts in, the city types in letter by letter in a tall condensed face, a small
+// line (number · date · title) sits under it in the entry's colour, other photos from the same entry pop
+// up as small frames like a collage, then the word leaves (backspaced, or tracked out letter by letter).
+const REEL_COUNT = 6;
+const REEL_MS = 6200;
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const imgSrcs = (p) => (p.files || []).map(f => f.type === 'video' ? f.thumb : (f.url || f.thumb)).filter(Boolean);
+const thumbSrcs = (p) => (p.files || []).map(f => f.thumb || (f.type === 'image' ? f.url : null)).filter(Boolean);
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+function reelEl() {
+  const list = [...posts].sort(byNewest).filter(p => imgSrcs(p).length).slice(0, REEL_COUNT);
+  if (!list.length) return null;
+  const bg = h('img', { class: 'reel-bg', alt: '' });
+  const pips = h('div', { class: 'reel-pips', 'aria-hidden': 'true' });
+  const word = h('div', { class: 'reel-word', 'aria-hidden': 'true' });
+  const sub = h('div', { class: 'reel-sub', 'aria-hidden': 'true' });
+  const count = h('div', { class: 'reel-count', 'aria-hidden': 'true' });
+  const bars = h('div', { class: 'reel-bars', 'aria-hidden': 'true' }, list.map(() => h('i', {}, h('b'))));
+  const link = h('a', { class: 'reel', href: '#/' }, bg, h('div', { class: 'reel-shade' }), pips, word, sub, count, bars,
+    h('span', { class: 'reel-label', text: '最近' }));
+
+  // Preload the photos so cuts are instant.
+  list.forEach(p => imgSrcs(p).slice(0, 4).forEach(s => { const i = new Image(); i.src = s; }));
+
+  const alive = () => link.isConnected || !started;
+  let started = false;
+  let i = 0;
+
+  const typeIn = async (letters, ep) => {
+    word.replaceChildren();
+    for (const ch of letters) {
+      if (ep !== epoch) return;
+      word.append(h('span', { text: ch }));
+      await wait(ch === ' ' ? 40 : 85);
+    }
+  };
+  const backspace = async (ep) => {
+    const spans = [...word.children];
+    await wait(140);
+    word.classList.add('flash');               // two-frame colour flash, then delete letter by letter
+    await wait(160);
+    word.classList.remove('flash');
+    for (let k = spans.length - 1; k >= 0; k--) { if (ep !== epoch) return; spans[k].remove(); await wait(55); }
+  };
+  const trackOut = async (ep) => {
+    word.classList.add('tracking');            // letters spread wide, then vanish in random order
+    await wait(700);
+    const spans = [...word.children].sort(() => Math.random() - 0.5);
+    for (const s of spans) { if (ep !== epoch) return; s.classList.add('gone'); await wait(70); }
+  };
+  const popPips = async (p, ep) => {
+    let srcs = thumbSrcs(p).slice(1, 4);
+    if (srcs.length < 2) srcs = [...srcs, ...list.filter(x => x !== p).map(x => thumbSrcs(x)[0]).filter(Boolean)].slice(0, 2);
+    // Corners only, so the frames never cover the word in the middle.
+    const spots = [[5, 13], [64, 12], [66, 66], [6, 68]].sort(() => Math.random() - 0.5);
+    for (const [k, src] of srcs.entries()) {
+      if (ep !== epoch) return;
+      const [x, y] = spots[k];
+      const w = 20 + Math.random() * 9;
+      const el = h('img', { src, alt: '', style: `left:${x}%;top:${y}%;width:${w}%` });
+      pips.append(el);
+      setTimeout(() => el.remove(), 1500 + Math.random() * 600);
+      await wait(420);
+    }
+  };
+
+  let epoch = 0;
+  const show = async (n) => {
+    const ep = ++epoch;
+    i = (n + list.length) % list.length;
+    const p = list[i];
+    const color = colorOf(catOf(p));
+    link.href = `#/entry/${p.id}`;
+    link.setAttribute('aria-label', `最近：${entryTitle(p) || cityOf(p) || '无标题'}，${fmtDate(entryDate(p))}`);
+    link.style.setProperty('--c', color);
+    pips.replaceChildren();
+    word.className = 'reel-word';
+    bg.classList.remove('in'); void bg.offsetWidth;
+    bg.src = imgSrcs(p)[0];
+    bg.classList.add('in');
+    count.textContent = `${String(i + 1).padStart(2, '0')} / ${String(list.length).padStart(2, '0')}`;
+    sub.replaceChildren(
+      h('span', { text: `#${String(posts.length - posts.slice().sort(byNewest).indexOf(p)).padStart(2, '0')}` }),
+      h('span', { text: entryDate(p).replaceAll('-', '.') }),
+      cityOf(p) && entryTitle(p) && h('span', { text: entryTitle(p) }));
+    [...bars.children].forEach((b, k) => { b.className = k < i ? 'done' : k === i ? 'now' : ''; });
+    bars.style.setProperty('--dur', `${REEL_MS}ms`);
+
+    const big = cityOf(p) || entryTitle(p) || labelOf(catOf(p));
+    // Shrink the word until it fits on one line.
+    word.style.fontSize = '';
+    word.replaceChildren(h('span', { text: big }));
+    for (let k = 0; k < 30 && word.scrollWidth > word.clientWidth && parseFloat(getComputedStyle(word).fontSize) > 30; k++) {
+      word.style.fontSize = parseFloat(getComputedStyle(word).fontSize) * 0.92 + 'px';
+    }
+    if (reduceMotion()) return;
+    word.replaceChildren();
+    await wait(250);
+    await typeIn([...big], ep);
+    if (ep !== epoch) return;
+    sub.classList.add('in');
+    await popPips(p, ep);
+    await wait(Math.max(0, REEL_MS - 250 - big.length * 85 - 1300 - 1200));
+    if (ep !== epoch) return;
+    sub.classList.remove('in');
+    await (i % 2 ? trackOut(ep) : backspace(ep));
+    if (ep !== epoch || !alive()) return;
+    if (document.hidden) {
+      document.addEventListener('visibilitychange', () => { if (ep === epoch && link.isConnected) show(i + 1); }, { once: true });
+      return;
+    }
+    show(i + 1);
+  };
+
+  // Tap the left edge to go back, the right edge to skip; anywhere else opens the entry.
+  link.addEventListener('click', (e) => {
+    const r = link.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    if (x < 0.18 || x > 0.82) { e.preventDefault(); show(i + (x < 0.5 ? -1 : 1)); }
+  });
+  requestAnimationFrame(() => { started = true; show(0); });
+  return link;
 }
 
 // Folders (reference 1): one folder per category, photos sticking out of the top.
@@ -475,6 +603,25 @@ function weatherCell(p) {
   return h('div', {}, h('dt', { text: '天气' }), dd);
 }
 
+// OpenStreetMap sometimes gives several spellings ("纽约;紐約"): keep the first, drop 市/县.
+const cleanCity = (s) => String(s || '').split(/[;；]/)[0].trim().replace(/(?<=..)(市|县|縣|區|区)$/, '');
+
+// Place typed by hand (no GPS): find it on the map so it gets a pin and a city.
+function findPlace(q) {
+  const run = nominatimChain.then(async () => {
+    try {
+      const r = await withTimeout(fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&accept-language=zh-CN&q=${encodeURIComponent(q)}`), 8000, 'timeout');
+      const hit = r.ok ? (await r.json())[0] : null;
+      if (!hit) return null;
+      const a = hit.address || {};
+      return { lat: +(+hit.lat).toFixed(5), lng: +(+hit.lon).toFixed(5),
+        city: cleanCity(a.city || a.town || a.village || a.municipality || a.city_district || '') };
+    } catch { return null; }
+  });
+  nominatimChain = run.then(() => new Promise(r => setTimeout(r, 1100)));
+  return run;
+}
+
 // ---------- City name from GPS (OpenStreetMap Nominatim: free, asks for at most 1 request a second) ----------
 let nominatimChain = Promise.resolve();
 function reverseCity(lat, lng) {
@@ -483,8 +630,7 @@ function reverseCity(lat, lng) {
       const r = await withTimeout(fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=zh-CN&lat=${lat}&lon=${lng}`), 8000, 'timeout');
       if (!r.ok) return '';
       const a = (await r.json()).address || {};
-      const name = a.city || a.town || a.village || a.municipality || a.county || a.state || '';
-      return name.replace(/(?<=..)(市|县|區|区)$/, '');
+      return cleanCity(a.city || a.town || a.village || a.municipality || a.city_district || '');
     } catch { return ''; }
   });
   nominatimChain = run.then(() => new Promise(r => setTimeout(r, 1100)));
@@ -496,7 +642,7 @@ let cityFillStarted = false;
 async function fillMissingCities() {
   if (cityFillStarted || !owner) return;
   cityFillStarted = true;
-  const todo = posts.filter(p => p.place?.lat != null && !p.place.city);
+  const todo = posts.filter(p => p.place?.lat != null && (!p.place.city || /[;；]/.test(p.place.city)));
   for (const p of todo) {
     const city = await reverseCity(p.place.lat, p.place.lng);
     if (!city) continue;
@@ -643,6 +789,13 @@ function editForm(p, card) {
           : null,
       };
       save.disabled = true;
+      // A new or changed place name: put it on the map and fill the city if it wasn't typed.
+      const newName = place.value.trim();
+      if (newName && (p.place?.lat == null || newName !== (p.place?.name || ''))) {
+        const found = await findPlace(newName);
+        if (found) update.place = { ...update.place, lat: found.lat, lng: found.lng,
+          city: city.value.trim() && city.value.trim() !== cityOf(p) ? city.value.trim() : (found.city || city.value.trim()) };
+      }
       try {
         await updateDoc(doc(db, 'posts', p.id), update);
         Object.assign(p, update);
@@ -1568,8 +1721,10 @@ $('#uploadBtn').addEventListener('click', async () => {
       const files = g.items.map(i => i.record).filter(Boolean);
       if (!files.length) { saved.push(g); continue; } // everything was skipped
       const placeName = (g.placeName ?? g.place?.name ?? '').trim();
-      const city = (g.place?.lat != null ? await reverseCity(g.place.lat, g.place.lng) : '') || g.city || '';
-      const place = g.place?.lat != null ? { lat: g.place.lat, lng: g.place.lng, name: placeName, city }
+      const found = g.place?.lat == null && placeName ? await findPlace(placeName) : null;
+      const gps = g.place?.lat != null ? g.place : found;
+      const city = (g.place?.lat != null ? await reverseCity(g.place.lat, g.place.lng) : found?.city) || cleanCity(g.city) || '';
+      const place = gps ? { lat: gps.lat, lng: gps.lng, name: placeName, city }
         : placeName || city ? { name: placeName, city } : null;
       const weather = place?.lat != null ? await fetchWeather(place.lat, place.lng, g.date) : null;
       const entry = {
