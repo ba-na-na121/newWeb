@@ -127,7 +127,36 @@ const CATEGORY_LABELS = {
 };
 const labelOf = (cat) => CATEGORY_LABELS[cat] || cat;
 const BAND_COLORS = ['#FFD43B', '#C8B9B3', '#FFB8EC', '#7C9CF0', '#93AE6B', '#FF8A3D', '#B9A8FF'];
-const catOf = (p) => p.category || 'Other';
+// An entry can sit in several folders (a trip with friends → 旅行 + 朋友). The first one is the main
+// category: it sets the entry's colour. Older entries only have "category".
+const catsOf = (p) => (p.categories?.length ? p.categories : [p.category || 'Other']);
+const catOf = (p) => catsOf(p)[0];
+
+// Short city name shown before card titles ("迈阿密 · 海边日落").
+function cityOf(p) {
+  if (p.place?.city) return p.place.city;
+  const name = (p.place?.name || '').trim();
+  if (!name) return '';
+  const last = name.split(/[,，·]/).map(s => s.trim()).filter(Boolean).pop() || '';
+  return last.length <= 8 ? last : '';
+}
+
+// Tap-to-toggle category chips. The first one picked is the main category.
+function catPicker(selected, onChange) {
+  const sel = [...selected];
+  const wrap = h('div', { class: 'cat-chips', role: 'group', 'aria-label': '分类（可多选，第一个是主分类）' });
+  const paint = () => wrap.replaceChildren(...[...new Set([...CATEGORIES, ...sel])].map(c => {
+    const i = sel.indexOf(c);
+    return h('button', {
+      type: 'button', class: 'cat-chip' + (i >= 0 ? ' on' : '') + (i === 0 ? ' main' : ''),
+      style: `--c:${colorOf(c)}`, 'aria-pressed': String(i >= 0),
+      title: i === 0 ? '主分类（决定颜色）' : '',
+      onclick: () => { i >= 0 ? sel.splice(i, 1) : sel.push(c); paint(); onChange([...sel]); },
+    }, h('i'), labelOf(c));
+  }));
+  paint();
+  return wrap;
+}
 const colorOf = (cat) => CATEGORY_COLORS[cat] || CATEGORY_COLORS.Other;
 const UNITS = { entry: '条记录', place: '个地点', photo: '张照片', result: '条结果' };
 const plural = (n, unit) => `${n} ${UNITS[unit] || unit}`;
@@ -231,7 +260,8 @@ function cardEl(p) {
         icon(videos ? 'play' : 'images', { filled: !!videos }), files.length > 1 ? String(files.length) : ''),
       getSaved().has(p.id) && h('span', { class: 'card-saved', 'aria-label': '已收藏' }, icon('star', { filled: true }))),
     h('div', { class: 'card-title' },
-      h('span', { class: 'card-dot', style: `background:${colorOf(catOf(p))}` }),
+      h('span', { class: 'card-dots' }, catsOf(p).map(c => h('span', { class: 'card-dot', style: `background:${colorOf(c)}` }))),
+      cityOf(p) && entryTitle(p) && h('span', { class: 'card-city', text: cityOf(p) }),
       entryTitle(p) || p.place?.name || '无标题'),
     h('div', { class: 'card-date', text: fmtDate(entryDate(p)) }));
 }
@@ -288,7 +318,7 @@ function folderEl(name, list, color, iconName) {
 function foldersRoot() {
   if (!posts.length) return [switchEl('folders'), emptyEl('这里还没有内容。')];
   const byCat = new Map();
-  posts.forEach(p => { const c = catOf(p); byCat.set(c, [...(byCat.get(c) || []), p]); });
+  posts.forEach(p => catsOf(p).forEach(c => byCat.set(c, [...(byCat.get(c) || []), p])));
   const order = [...CATEGORIES, ...[...byCat.keys()].filter(c => !CATEGORIES.includes(c))];
   const saved = getSaved();
   const savedList = posts.filter(p => saved.has(p.id));
@@ -302,7 +332,7 @@ function foldersRoot() {
 
 function folderPage(name) {
   const saved = getSaved();
-  const list = name === 'Saved' ? posts.filter(p => saved.has(p.id)) : posts.filter(p => catOf(p) === name);
+  const list = name === 'Saved' ? posts.filter(p => saved.has(p.id)) : posts.filter(p => catsOf(p).includes(name));
   return [
     ...pageHead(labelOf(name), '#/folders', plural(list.length, 'entry'), name === 'Saved' ? SAVED_COLOR : colorOf(name)),
     ...(list.length ? entryGrid(list) : [emptyEl(name === 'Saved' ? '在记录里点星标，就会收进这里。' : '这里还没有内容。')]),
@@ -361,7 +391,7 @@ function searchMatches(q) {
   q = q.trim().toLowerCase();
   if (!q) return [];
   if (q.startsWith('#')) return posts.filter(p => (p.tags || []).includes(q.slice(1)));
-  return posts.filter(p => [p.title, p.text, catOf(p), labelOf(catOf(p)), (p.tags || []).join(' '), p.place?.name, entryDate(p), fmtDate(entryDate(p))]
+  return posts.filter(p => [p.title, p.text, ...catsOf(p), ...catsOf(p).map(labelOf), (p.tags || []).join(' '), p.place?.name, entryDate(p), fmtDate(entryDate(p))]
     .join(' ').toLowerCase().includes(q));
 }
 
@@ -445,6 +475,38 @@ function weatherCell(p) {
   return h('div', {}, h('dt', { text: '天气' }), dd);
 }
 
+// ---------- City name from GPS (OpenStreetMap Nominatim: free, asks for at most 1 request a second) ----------
+let nominatimChain = Promise.resolve();
+function reverseCity(lat, lng) {
+  const run = nominatimChain.then(async () => {
+    try {
+      const r = await withTimeout(fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=zh-CN&lat=${lat}&lon=${lng}`), 8000, 'timeout');
+      if (!r.ok) return '';
+      const a = (await r.json()).address || {};
+      const name = a.city || a.town || a.village || a.municipality || a.county || a.state || '';
+      return name.replace(/(?<=..)(市|县|區|区)$/, '');
+    } catch { return ''; }
+  });
+  nominatimChain = run.then(() => new Promise(r => setTimeout(r, 1100)));
+  return run;
+}
+
+// Entries saved before city names existed: look them up once (owner only) and remember them.
+let cityFillStarted = false;
+async function fillMissingCities() {
+  if (cityFillStarted || !owner) return;
+  cityFillStarted = true;
+  const todo = posts.filter(p => p.place?.lat != null && !p.place.city);
+  for (const p of todo) {
+    const city = await reverseCity(p.place.lat, p.place.lng);
+    if (!city) continue;
+    p.place = { ...p.place, city };
+    try { await updateDoc(doc(db, 'posts', p.id), { 'place.city': city }); } catch {}
+  }
+  const name = parseRoute().name;
+  if (todo.length && ['', 'folders', 'timeline', 'search'].includes(name)) route();
+}
+
 // ---------- Full-screen photo viewer (tap a photo on an entry) ----------
 function openViewer(files, start = 0) {
   const slides = h('div', { class: 'viewer-slides' }, files.map(f => h('div', { class: 'viewer-slide' },
@@ -511,11 +573,12 @@ function entryPage(id) {
   const filesLabel = kinds.size === 1 ? (kinds.has('video') ? '视频' : '照片') : '照片和视频';
 
   const body = h('div', { class: 'entry-body' },
-    h('a', { class: 'entry-when', href: `#/folders/${encodeURIComponent(cat)}`, text: labelOf(cat) }),
+    h('div', { class: 'entry-cats' }, catsOf(p).map(c => h('a', { class: 'entry-when', href: `#/folders/${encodeURIComponent(c)}`, text: labelOf(c) }))),
     h('h1', { class: 'entry-title', text: entryTitle(p) || placeName || fmtDate(d) }),
     h('dl', { class: 'stats' },
       h('div', {}, h('dt', { text: '日期' }), h('dd', {}, `${mm}月${dd}日`, h('small', { text: `${yy}年` }))),
-      h('div', {}, h('dt', { text: '地点' }), h('dd', { text: placeName || '未设置' })),
+      h('div', {}, h('dt', { text: '地点' }), h('dd', {}, cityOf(p) || placeName || '未设置',
+        cityOf(p) && placeName && placeName !== cityOf(p) && h('small', { text: placeName }))),
       weatherCell(p),
       h('div', {}, h('dt', { text: filesLabel }), h('dd', { text: String(files.length) }))),
     p.text && h('p', { class: 'entry-text', text: p.text }),
@@ -525,7 +588,7 @@ function entryPage(id) {
       h('button', { class: 'pill-btn', type: 'button', onclick: () => editForm(p, body) }, icon('edit'), '编辑'),
       h('button', { class: 'pill-btn ghost', type: 'button', onclick: () => removeEntry(p) }, icon('trash'), '删除')));
 
-  const others = posts.filter(x => x.id !== p.id && catOf(x) === cat).sort(byNewest).slice(0, 9);
+  const others = posts.filter(x => x.id !== p.id && catsOf(x).includes(cat)).sort(byNewest).slice(0, 9);
   if (others.length) body.append(h('section', { class: 'more' },
     h('h2', { text: `更多「${labelOf(cat)}」` }),
     h('div', { class: 'more-row' }, others.map(x => h('a', { href: `#/entry/${x.id}`, 'aria-label': entryTitle(x) || fmtDate(entryDate(x)) },
@@ -558,11 +621,11 @@ function editForm(p, card) {
   if (card.querySelector('.edit-form')) return;
   const title = h('input', { class: 'field', value: p.title || '', placeholder: '标题', 'aria-label': '标题' });
   const date = h('input', { class: 'field', type: 'date', value: entryDate(p), 'aria-label': '日期' });
-  const cat = h('select', { class: 'field', value: p.category || '', 'aria-label': '分类' },
-    h('option', { value: '', text: '不分类' }),
-    ...[...new Set([...CATEGORIES, p.category].filter(Boolean))].map(c => h('option', { value: c, text: labelOf(c) })));
+  let cats = p.categories?.length ? [...p.categories] : (p.category ? [p.category] : []);
+  const cat = catPicker(cats, (v) => { cats = v; });
   const tags = h('input', { class: 'field', value: (p.tags || []).join(', '), placeholder: '标签，用逗号分隔', 'aria-label': '标签' });
   const place = h('input', { class: 'field', value: p.place?.name || '', placeholder: '地点', 'aria-label': '地点' });
+  const city = h('input', { class: 'field', value: cityOf(p), placeholder: '城市简称，如 迈阿密', 'aria-label': '城市简称' });
   const text = h('textarea', { class: 'field', placeholder: '写点什么', 'aria-label': '正文' });
   text.value = p.text || '';
 
@@ -571,12 +634,13 @@ function editForm(p, card) {
       const update = {
         title: title.value.trim(),
         date: date.value || entryDate(p),
-        category: cat.value,
+        category: cats[0] || '',
+        categories: cats,
         tags: parseTags(tags.value),
         text: text.value,
-        place: place.value.trim()
-          ? { ...(p.place || {}), name: place.value.trim() }
-          : (p.place?.lat != null ? { lat: p.place.lat, lng: p.place.lng, name: '' } : null),
+        place: place.value.trim() || city.value.trim() || p.place?.lat != null
+          ? { ...(p.place || {}), name: place.value.trim(), city: city.value.trim() }
+          : null,
       };
       save.disabled = true;
       try {
@@ -595,7 +659,8 @@ function editForm(p, card) {
 
   const form = h('div', { class: 'edit-form' },
     h('div', { class: 'two' }, title, date),
-    h('div', { class: 'two' }, cat, place),
+    h('div', { class: 'two' }, place, city),
+    h('p', { class: 'edit-label', text: '分类（可多选，第一个是主分类，决定颜色）' }), cat,
     tags, text,
     h('div', { class: 'entry-actions' }, save, cancel));
   card.querySelector('.entry-actions').after(form);
@@ -824,11 +889,24 @@ async function readVideoMeta(file) {
     const t = await mp4CreationTime(file);
     if (t) { out.date = localDay(t); out.dateSource = 'video'; }
   }
+  if (out.lat == null) {
+    // Some phones and apps store the location where the library doesn't look. Search the whole header for it.
+    const moov = await readMoov(file);
+    if (moov) {
+      const text = new TextDecoder('latin1').decode(moov);
+      const m = text.match(/([+-]\d{1,2}\.\d{2,})([+-]\d{1,3}\.\d{2,})(?:[+-]\d+(?:\.\d+)?)?\//) ||
+        text.match(/([+-]\d{1,2}\.\d{3,})([+-]\d{1,3}\.\d{3,})/);
+      if (m && Math.abs(+m[1]) <= 90 && Math.abs(+m[2]) <= 180 && !(+m[1] === 0 && +m[2] === 0)) {
+        out.lat = +(+m[1]).toFixed(5);
+        out.lng = +(+m[2]).toFixed(5);
+      }
+    }
+  }
   return out;
 }
 
-// Fallback: the creation time in the MP4/MOV header ("mvhd" box), seconds since 1904 in UTC.
-async function mp4CreationTime(file) {
+// The "moov" header box of an MP4/MOV (it can sit at the start or the end of the file).
+async function readMoov(file) {
   try {
     let pos = 0;
     while (pos + 8 <= file.size) {
@@ -839,8 +917,18 @@ async function mp4CreationTime(file) {
       if (size === 1) { size = Number(head.getBigUint64(8)); hdr = 16; }
       else if (size === 0) size = file.size - pos;
       if (size < hdr) return null;
-      if (type === 'moov') {
-        const moov = new Uint8Array(await file.slice(pos + hdr, pos + Math.min(size, hdr + 4e6)).arrayBuffer());
+      if (type === 'moov') return new Uint8Array(await file.slice(pos + hdr, pos + Math.min(size, hdr + 8e6)).arrayBuffer());
+      pos += size;
+    }
+  } catch {}
+  return null;
+}
+
+// Fallback: the creation time in the MP4/MOV header ("mvhd" box), seconds since 1904 in UTC.
+async function mp4CreationTime(file) {
+  try {
+    const moov = await readMoov(file);
+    if (moov) {
         for (let i = 4; i + 16 < moov.length; i++) {
           if (moov[i] === 0x6d && moov[i + 1] === 0x76 && moov[i + 2] === 0x68 && moov[i + 3] === 0x64) { // "mvhd"
             const dv = new DataView(moov.buffer, moov.byteOffset + i + 4);
@@ -851,8 +939,6 @@ async function mp4CreationTime(file) {
           }
         }
         return null;
-      }
-      pos += size;
     }
   } catch {}
   return null;
@@ -1049,7 +1135,7 @@ async function addFiles(files) {
     readCount++;
     $('#progress').textContent = readCount < files.length ? `正在读取 ${readCount}/${files.length}…` : '';
     logLine(`读取 ${file.name} · ${file.type || '无类型'} · ${mb(file.size)} · 日期 ${meta.date}（来源：${{ photo: '照片信息', video: '视频信息', file: '文件日期' }[meta.dateSource]}）` +
-      ` · ${meta.lat != null ? 'GPS ✓' : '无 GPS'} · ${shrunk ? '照片 ✓' : frame ? '视频封面 ✓' : isImage ? '照片 ✕（打不开）' : '视频封面 ✕'}` +
+      ` · ${meta.lat != null ? 'GPS ✓' : file.type.startsWith('video/') ? '无 GPS（视频文件里没有位置）' : '无 GPS'} · ${shrunk ? '照片 ✓' : frame ? '视频封面 ✓' : isImage ? '照片 ✕（打不开）' : '视频封面 ✕'}` +
       ` · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     regroup();
   });
@@ -1075,12 +1161,12 @@ function regroup() {
   });
   groups = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([key, items]) => {
     const prev = old.get(key);
-    const gps = items.find(i => i.meta.lat != null)?.meta;
+    const gps = items.find(i => i.meta.lat != null)?.meta || all.find(i => i.meta.date === items[0].meta.date && i.meta.lat != null)?.meta;
     return prev && prev.items.length === items.length ? prev : {
       key, items,
       date: items[0].meta.date,
       title: prev?.title || '', text: prev?.text || '',
-      category: prev?.category || '', tags: prev?.tags || [],
+      categories: prev?.categories || [], tags: prev?.tags || [],
       place: gps ? { lat: gps.lat, lng: gps.lng, name: prev?.place?.name || '' } : (prev?.place || null),
       aiDone: prev?.aiDone || false,
     };
@@ -1125,10 +1211,8 @@ function groupEl(g) {
     heic > 0 && h('p', { class: 'hint', text: `有 ${heic} 张 HEIC 照片打不开。请重试，或在 iCloud 里导出为 JPEG（“兼容性最佳”）。` }),
     bind(h('input', { class: 'field', value: g.title, placeholder: '标题', style: 'width:100%;margin-bottom:8px' }), 'title'),
     bind(h('textarea', { class: 'field', placeholder: '发生了什么？（可不填）', value: g.text }), 'text'),
+    catPicker(g.categories, (v) => { g.categories = v; }),
     h('div', { class: 'line' },
-      bind(h('select', { class: 'field', value: g.category },
-        h('option', { value: '', text: '— 分类 —' }),
-        ...CATEGORIES.map(c => h('option', { value: c, text: labelOf(c) }))), 'category'),
       bind(h('input', { class: 'field', value: g.tags.join(', '), placeholder: '标签' }), 'tags', parseTags),
       bind(h('input', { class: 'field', value: g.placeName ?? g.place?.name ?? '', placeholder: '地点' }), 'placeName')));
 }
@@ -1148,7 +1232,8 @@ async function getModel() {
           properties: {
             title: Schema.string(),
             caption: Schema.string(),
-            category: Schema.string(),
+            categories: Schema.array({ items: Schema.string() }),
+            city: Schema.string(),
             tags: Schema.array({ items: Schema.string() }),
             place: Schema.string(),
           },
@@ -1198,7 +1283,8 @@ async function suggest(g, { auto = false } = {}) {
       'Return JSON with:',
       '- title: 4 to 12 Chinese characters, specific to what is shown.',
       '- caption: one or two plain sentences describing the moment. Do not invent names of people.',
-      `- category: exactly one of ${CATEGORIES.join(', ')}.`,
+      `- categories: 1 or 2 of ${CATEGORIES.join(', ')}, best fit first. Add a second only when it clearly also fits (a trip with friends → Travel, Friends; a meal while traveling → Travel, Food).`,
+      '- city: the short city name only, in Simplified Chinese when it has a common Chinese name (迈阿密, 纽约, 东京), else empty.',
       '- tags: 3 to 8 short lowercase tags (things, activities, mood, season).',
       '- place: if GPS is given, the neighborhood and city it points to; otherwise a clearly recognizable landmark or city, else an empty string.',
       'Write title, caption, tags and place in Simplified Chinese (keep well-known English place names like SoHo as they are).',
@@ -1210,7 +1296,12 @@ async function suggest(g, { auto = false } = {}) {
     if (!g.title && out.title) g.title = out.title.trim();
     if (!g.text && out.caption) g.text = out.caption.trim();
     const pick = $('#bulkCategory').value;
-    if (!g.category) g.category = pick || (CATEGORIES.includes(out.category) ? out.category : 'Other');
+    if (!g.categories.length) {
+      const ai = (out.categories || []).filter(c => CATEGORIES.includes(c)).slice(0, 2);
+      g.categories = [...new Set([pick, ...ai].filter(Boolean))];
+      if (!g.categories.length) g.categories = ['Other'];
+    }
+    if (out.city && !g.city) g.city = out.city.trim();
     g.tags = [...new Set([...g.tags, ...parseTags($('#bulkTags').value), ...parseTags((out.tags || []).join(','))])];
     if (out.place && !g.placeName && !g.place?.name) {
       g.place = { ...(g.place || {}), name: out.place.trim() };
@@ -1477,15 +1568,19 @@ $('#uploadBtn').addEventListener('click', async () => {
       const files = g.items.map(i => i.record).filter(Boolean);
       if (!files.length) { saved.push(g); continue; } // everything was skipped
       const placeName = (g.placeName ?? g.place?.name ?? '').trim();
-      const place = g.place?.lat != null ? { lat: g.place.lat, lng: g.place.lng, name: placeName }
-        : placeName ? { name: placeName } : null;
+      const city = (g.place?.lat != null ? await reverseCity(g.place.lat, g.place.lng) : '') || g.city || '';
+      const place = g.place?.lat != null ? { lat: g.place.lat, lng: g.place.lng, name: placeName, city }
+        : placeName || city ? { name: placeName, city } : null;
       const weather = place?.lat != null ? await fetchWeather(place.lat, place.lng, g.date) : null;
       const entry = {
         weather,
         title: (g.title || '').trim(),
         text: g.text || '',
         date: g.date,
-        category: g.category || bulkCat || '',
+        ...(() => {
+          const cats = g.categories.length ? g.categories : bulkCat ? [bulkCat] : [];
+          return { category: cats[0] || '', categories: cats };
+        })(),
         tags: [...new Set([...(g.tags || []), ...bulkTags])],
         place,
         files,
@@ -1553,6 +1648,7 @@ onAuthStateChanged(auth, async (user) => {
     posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     loaded = true;
     route();
+    fillMissingCities();
   } catch (err) {
     console.error(err);
     $('#browseView').replaceChildren(h('p', { class: 'empty',
