@@ -44,7 +44,7 @@ const parseTags = (s) => [...new Set(String(s || '')
   .split(/[,，#\n]+/).map(t => t.trim().toLowerCase()).filter(Boolean))];
 const fmtDate = (s) => {
   const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en', { year: 'numeric', month: 'short', day: 'numeric' });
+  return `${y}年${m}月${d}日`;
 };
 
 function toast(msg, ms = 3000) {
@@ -99,6 +99,13 @@ const ICONS = {
   trash: '<path d="M4.5 7h15M10 7V4.5h4V7M6.5 7l1 12.5h9l1-12.5"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   alert: '<path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.3"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+  cloud: '<path d="M7 18.5h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.1 9.1 4.7 4.7 0 0 0 7 18.5z"/>',
+  'cloud-sun': '<path d="M8 3.5v1.2M3.9 5.2l.9.9M2.5 9.5h1.2M12.1 5.2l-.9.9"/><path d="M5.3 11.6A3.3 3.3 0 1 1 10.9 7.7"/><path d="M9 20h8.5a3.5 3.5 0 0 0 .5-6.96 4.8 4.8 0 0 0-9.2-1.2A4.1 4.1 0 0 0 9 20z"/>',
+  rain: '<path d="M7 14.5h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.1 5.1 4.7 4.7 0 0 0 7 14.5z"/><path d="M8.5 17.5 7.5 20M12.5 17.5l-1 2.5M16.5 17.5l-1 2.5"/>',
+  snow: '<path d="M7 14.5h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.1 5.1 4.7 4.7 0 0 0 7 14.5z"/><path d="M8 18.5h.01M12 20.5h.01M16 18.5h.01M10 17.5h.01M14 17.5h.01"/>',
+  fog: '<path d="M4 9h16M6 13h12M4 17h16"/>',
+  storm: '<path d="M7 14.5h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 7.1 5.1 4.7 4.7 0 0 0 7 14.5z"/><path d="M12.5 15.5 10.5 19h3l-2 3"/>',
   upload: '<path d="M12 15V4.5M7.5 9 12 4.5 16.5 9"/><path d="M4.5 15v3A1.5 1.5 0 0 0 6 19.5h12a1.5 1.5 0 0 0 1.5-1.5v-3"/>',
 };
 
@@ -115,16 +122,21 @@ const CATEGORY_COLORS = {
   Creative: '#B9A8FF', Study: '#93AE6B', Other: '#C8B9B3',
 };
 const SAVED_COLOR = '#F3EFE6';
+const CATEGORY_LABELS = {
+  Daily: '日常', Travel: '旅行', Food: '美食', Friends: '朋友', Creative: '创作', Study: '学习', Other: '其他', Saved: '收藏',
+};
+const labelOf = (cat) => CATEGORY_LABELS[cat] || cat;
 const BAND_COLORS = ['#FFD43B', '#C8B9B3', '#FFB8EC', '#7C9CF0', '#93AE6B', '#FF8A3D', '#B9A8FF'];
 const catOf = (p) => p.category || 'Other';
 const colorOf = (cat) => CATEGORY_COLORS[cat] || CATEGORY_COLORS.Other;
-const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+const UNITS = { entry: '条记录', place: '个地点', photo: '张照片', result: '条结果' };
+const plural = (n, unit) => `${n} ${UNITS[unit] || unit}`;
 const byNewest = (a, b) => entryDate(b).localeCompare(entryDate(a)) || (b.createdAt || '').localeCompare(a.createdAt || '');
 const coverSrc = (p) => {
   const f = (p.files || []).find(x => x.thumb || x.type === 'image');
   return f ? (f.thumb || f.url) : null;
 };
-const monthName = (y, m, style = 'long') => new Date(y, m - 1).toLocaleString('en', { month: style });
+const monthName = (y, m) => `${+m}月`;
 
 // ---------- Saved — remembered on this device ----------
 const SAVED_KEY = 'lifestyle-likes';
@@ -163,6 +175,7 @@ function route({ keepScroll = false } = {}) {
   $('#browseView').hidden = view !== 'browse';
   $('#mapView').hidden = view !== 'map';
   $('#addView').hidden = view !== 'add';
+  document.body.classList.toggle('immersive', view === 'browse' && name === 'entry');
   document.querySelectorAll('.actions a.icon-btn').forEach(a =>
     a.toggleAttribute('aria-current', a.getAttribute('href') === `#/${name}`));
   if (view === 'map') renderMap();
@@ -182,15 +195,15 @@ $('#logoutBtn').addEventListener('click', async () => {
 
 // ---------- Shared pieces ----------
 function switchEl(active) {
-  return h('nav', { class: 'switch', 'aria-label': 'Browse by' },
-    h('a', { href: '#/folders', 'aria-current': active === 'folders' ? 'page' : null }, icon('folder'), 'Folders'),
-    h('a', { href: '#/timeline', 'aria-current': active === 'timeline' ? 'page' : null }, icon('timeline'), 'Timeline'));
+  return h('nav', { class: 'switch', 'aria-label': '浏览方式' },
+    h('a', { href: '#/folders', 'aria-current': active === 'folders' ? 'page' : null }, icon('folder'), '分类'),
+    h('a', { href: '#/timeline', 'aria-current': active === 'timeline' ? 'page' : null }, icon('timeline'), '时间线'));
 }
 
 function pageHead(title, backHref, sub, color) {
   return [
     h('div', { class: 'page-head' },
-      h('a', { class: 'back', href: backHref, 'aria-label': 'Back' }, icon('chevron-left')),
+      h('a', { class: 'back', href: backHref, 'aria-label': '返回' }, icon('chevron-left')),
       color && h('span', { class: 'title-chip', style: `background:${color}` }),
       h('h1', { class: 'page-title', text: title })),
     sub && h('p', { class: 'page-sub', text: sub }),
@@ -200,7 +213,7 @@ function pageHead(title, backHref, sub, color) {
 function emptyEl(text) {
   return h('div', { class: 'empty' },
     h('p', { text }),
-    owner && h('a', { class: 'btn primary', href: '#/add' }, icon('plus'), 'Add photos'));
+    owner && h('a', { class: 'btn primary', href: '#/add' }, icon('plus'), '添加照片'));
 }
 
 function cardEl(p) {
@@ -216,10 +229,10 @@ function cardEl(p) {
       media,
       (files.length > 1 || videos > 0) && h('span', { class: 'card-chip' },
         icon(videos ? 'play' : 'images', { filled: !!videos }), files.length > 1 ? String(files.length) : ''),
-      getSaved().has(p.id) && h('span', { class: 'card-saved', 'aria-label': 'Saved' }, icon('star', { filled: true }))),
+      getSaved().has(p.id) && h('span', { class: 'card-saved', 'aria-label': '已收藏' }, icon('star', { filled: true }))),
     h('div', { class: 'card-title' },
       h('span', { class: 'card-dot', style: `background:${colorOf(catOf(p))}` }),
-      entryTitle(p) || p.place?.name || 'Untitled'),
+      entryTitle(p) || p.place?.name || '无标题'),
     h('div', { class: 'card-date', text: fmtDate(entryDate(p)) }));
 }
 
@@ -234,7 +247,7 @@ function entryGrid(list, { months = true } = {}) {
     if (k !== key) {
       key = k;
       const [y, m] = k.split('-').map(Number);
-      out.push(h('h2', { class: 'month-head', text: `${monthName(y, m)} ${y}` }));
+      out.push(h('h2', { class: 'month-head', text: `${y}年${m}月` }));
       grid = h('div', { class: 'grid' });
       out.push(grid);
     }
@@ -250,10 +263,11 @@ function renderBrowse(name, rest) {
   if (name === 'search') return v.replaceChildren(...searchPage(rest.join('/')));
   if (name === 'folders' && rest[0]) return v.replaceChildren(...folderPage(rest[0]));
   if (name === 'timeline' && rest[1]) return v.replaceChildren(...monthPage(rest[0], rest[1]));
-  if (name === 'timeline' && rest[0]) return v.replaceChildren(...yearPage(rest[0]));
+  if (name === 'timeline' && rest[0]) { v.replaceChildren(...yearPage(rest[0])); return requestAnimationFrame(fitBands); }
   const mode = name === 'timeline' || name === 'folders' ? name : getMode();
   setMode(mode);
   v.replaceChildren(...(mode === 'timeline' ? timelineRoot() : foldersRoot()));
+  requestAnimationFrame(fitBands);
 }
 
 // Folders (reference 1): one folder per category, photos sticking out of the top.
@@ -261,18 +275,18 @@ function folderEl(name, list, color, iconName) {
   const pics = [...list].sort(byNewest).map(coverSrc).filter(Boolean).slice(0, 3);
   return h('a', {
     class: 'folder', href: `#/folders/${encodeURIComponent(name)}`, style: `--c:${color}`,
-    'aria-label': `${name}, ${plural(list.length, 'entry', 'entries')}`,
+    'aria-label': `${labelOf(name)}，${plural(list.length, 'entry')}`,
   },
     h('span', { class: 'folder-back' }),
     h('span', { class: 'folder-peek' }, pics.map(src => h('img', { src, alt: '', loading: 'lazy' }))),
     h('span', { class: 'folder-front' },
       iconName && icon(iconName, { filled: true }),
-      h('span', { class: 'folder-name', text: name }),
-      h('span', { class: 'folder-count', text: plural(list.length, 'entry', 'entries') })));
+      h('span', { class: 'folder-name', text: labelOf(name) }),
+      h('span', { class: 'folder-count', text: plural(list.length, 'entry') })));
 }
 
 function foldersRoot() {
-  if (!posts.length) return [switchEl('folders'), emptyEl('Nothing here yet.')];
+  if (!posts.length) return [switchEl('folders'), emptyEl('这里还没有内容。')];
   const byCat = new Map();
   posts.forEach(p => { const c = catOf(p); byCat.set(c, [...(byCat.get(c) || []), p]); });
   const order = [...CATEGORIES, ...[...byCat.keys()].filter(c => !CATEGORIES.includes(c))];
@@ -290,8 +304,8 @@ function folderPage(name) {
   const saved = getSaved();
   const list = name === 'Saved' ? posts.filter(p => saved.has(p.id)) : posts.filter(p => catOf(p) === name);
   return [
-    ...pageHead(name, '#/folders', plural(list.length, 'entry', 'entries'), name === 'Saved' ? SAVED_COLOR : colorOf(name)),
-    ...(list.length ? entryGrid(list) : [emptyEl(name === 'Saved' ? 'Tap the star on an entry to keep it here.' : 'Nothing here yet.')]),
+    ...pageHead(labelOf(name), '#/folders', plural(list.length, 'entry'), name === 'Saved' ? SAVED_COLOR : colorOf(name)),
+    ...(list.length ? entryGrid(list) : [emptyEl(name === 'Saved' ? '在记录里点星标，就会收进这里。' : '这里还没有内容。')]),
   ];
 }
 
@@ -300,19 +314,17 @@ function bandEl(title, short, list, color, href) {
   const places = new Set(list.map(p => p.place?.name).filter(Boolean)).size;
   const files = list.reduce((n, p) => n + (p.files || []).length, 0);
   const pics = [...list].sort(byNewest).map(coverSrc).filter(Boolean).slice(0, 3);
-  return h('a', { class: 'band', href, style: `--c:${color}`, 'aria-label': `${title}, ${plural(list.length, 'entry', 'entries')}` },
+  return h('a', { class: 'band', href, style: `--c:${color}`, 'aria-label': `${title}, ${plural(list.length, 'entry')}` },
     h('span', { class: 'band-go' }, icon('arrow-right')),
-    h('span', { class: 'band-title' },
-      h('span', { class: 'full', text: title }),
-      h('span', { class: 'short', text: short || title })),
+    h('span', { class: 'band-title', text: title }),
     h('span', { class: 'band-side' },
-      h('b', { text: plural(list.length, 'entry', 'entries') }),
+      h('b', { text: plural(list.length, 'entry') }),
       h('span', { class: 'band-meta', text: places ? plural(places, 'place') : plural(files, 'photo') }),
       pics.length > 0 && h('span', { class: 'band-thumbs' }, pics.map(src => h('img', { src, alt: '', loading: 'lazy' })))));
 }
 
 function timelineRoot() {
-  if (!posts.length) return [switchEl('timeline'), emptyEl('Nothing here yet.')];
+  if (!posts.length) return [switchEl('timeline'), emptyEl('这里还没有内容。')];
   const years = new Map();
   posts.forEach(p => { const y = entryDate(p).slice(0, 4); years.set(y, [...(years.get(y) || []), p]); });
   const keys = [...years.keys()].sort().reverse();
@@ -328,19 +340,19 @@ function yearPage(y) {
   list.forEach(p => { const m = entryDate(p).slice(5, 7); months.set(m, [...(months.get(m) || []), p]); });
   const keys = [...months.keys()].sort().reverse();
   return [
-    ...pageHead(y, '#/timeline', plural(list.length, 'entry', 'entries')),
+    ...pageHead(y, '#/timeline', plural(list.length, 'entry')),
     keys.length
-      ? h('div', { class: 'bands' }, keys.map((m, i) => bandEl(monthName(y, +m), monthName(y, +m, 'short'), months.get(m),
+      ? h('div', { class: 'bands' }, keys.map((m, i) => bandEl(monthName(y, +m), null, months.get(m),
         BAND_COLORS[i % BAND_COLORS.length], `#/timeline/${y}/${m}`)))
-      : emptyEl('Nothing from this year.'),
+      : emptyEl('这一年还没有内容。'),
   ];
 }
 
 function monthPage(y, m) {
   const list = posts.filter(p => entryDate(p).startsWith(`${y}-${m}`));
   return [
-    ...pageHead(`${monthName(y, +m)} ${y}`, `#/timeline/${y}`, plural(list.length, 'entry', 'entries')),
-    ...(list.length ? entryGrid(list, { months: false }) : [emptyEl('Nothing from this month.')]),
+    ...pageHead(`${y}年${+m}月`, `#/timeline/${y}`, plural(list.length, 'entry')),
+    ...(list.length ? entryGrid(list, { months: false }) : [emptyEl('这个月还没有内容。')]),
   ];
 }
 
@@ -349,7 +361,7 @@ function searchMatches(q) {
   q = q.trim().toLowerCase();
   if (!q) return [];
   if (q.startsWith('#')) return posts.filter(p => (p.tags || []).includes(q.slice(1)));
-  return posts.filter(p => [p.title, p.text, catOf(p), (p.tags || []).join(' '), p.place?.name, entryDate(p), fmtDate(entryDate(p))]
+  return posts.filter(p => [p.title, p.text, catOf(p), labelOf(catOf(p)), (p.tags || []).join(' '), p.place?.name, entryDate(p), fmtDate(entryDate(p))]
     .join(' ').toLowerCase().includes(q));
 }
 
@@ -359,11 +371,11 @@ function searchPage(q) {
     const list = searchMatches(text);
     results.replaceChildren(...(text.trim()
       ? (list.length ? [h('p', { class: 'page-sub', text: plural(list.length, 'result') }), ...entryGrid(list)]
-        : [h('p', { class: 'empty', text: `Nothing matches “${text.trim()}”.` })])
-      : [h('p', { class: 'page-sub', text: 'Search titles, places, tags and dates.' })]));
+        : [h('p', { class: 'empty', text: `没有找到和“${text.trim()}”相关的内容。` })])
+      : [h('p', { class: 'page-sub', text: '可以搜索标题、地点、标签和日期。' })]));
   };
   const input = h('input', {
-    type: 'search', value: q, placeholder: 'Search the archive', 'aria-label': 'Search the archive', enterkeyhint: 'search',
+    type: 'search', value: q, placeholder: '搜索档案', 'aria-label': '搜索档案', enterkeyhint: 'search',
     oninput: (e) => {
       history.replaceState(null, '', `#/search/${encodeURIComponent(e.target.value)}`);
       show(e.target.value);
@@ -371,13 +383,90 @@ function searchPage(q) {
   });
   show(q);
   setTimeout(() => input.focus(), 0);
-  return [...pageHead('Search', '#/'), h('label', { class: 'search-box' }, icon('search'), input), results];
+  return [...pageHead('搜索', '#/'), h('label', { class: 'search-box' }, icon('search'), input), results];
 }
 
-// One entry (reference 2): big media on top, a card in the category colour below.
+// ---------- Weather (Open-Meteo: free, no key) ----------
+// WMO weather codes → Chinese label and icon.
+function weatherInfo(code) {
+  if (code === 0) return ['晴', 'sun'];
+  if (code <= 2) return ['多云', 'cloud-sun'];
+  if (code === 3) return ['阴', 'cloud'];
+  if (code === 45 || code === 48) return ['雾', 'fog'];
+  if (code >= 51 && code <= 57) return ['毛毛雨', 'rain'];
+  if (code === 61 || code === 80) return ['小雨', 'rain'];
+  if (code === 63 || code === 81) return ['中雨', 'rain'];
+  if (code === 65 || code === 82) return ['大雨', 'rain'];
+  if (code === 66 || code === 67) return ['冻雨', 'rain'];
+  if (code >= 71 && code <= 77) return ['雪', 'snow'];
+  if (code === 85 || code === 86) return ['阵雪', 'snow'];
+  if (code >= 95) return ['雷雨', 'storm'];
+  return ['—', 'cloud'];
+}
+
+// The day's weather where an entry was taken. Recent days come from the forecast service,
+// older ones from the archive. Returns { code, max, min } or null.
+async function fetchWeather(lat, lng, date) {
+  try {
+    const age = (Date.now() - new Date(`${date}T12:00:00`).getTime()) / 864e5;
+    if (!(lat != null && lng != null) || age < -1) return null;
+    const base = age < 60 ? 'https://api.open-meteo.com/v1/forecast' : 'https://archive-api.open-meteo.com/v1/archive';
+    const url = `${base}?latitude=${lat}&longitude=${lng}&start_date=${date}&end_date=${date}` +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto';
+    const r = await withTimeout(fetch(url), 10000, '天气查询超时');
+    if (!r.ok) return null;
+    const d = (await r.json()).daily;
+    if (!d || d.weather_code?.[0] == null) return null;
+    return { code: d.weather_code[0], max: Math.round(d.temperature_2m_max[0]), min: Math.round(d.temperature_2m_min[0]) };
+  } catch { return null; }
+}
+
+function weatherCell(p) {
+  const dd = h('dd', {});
+  const paint = (w) => {
+    if (w) {
+      const [label, ic] = weatherInfo(w.code);
+      dd.replaceChildren(h('span', { class: 'wx' }, icon(ic), `${w.max}°`), h('small', { text: `${label}，最低 ${w.min}°` }));
+    } else {
+      dd.replaceChildren(h('span', { class: 'muted', text: p.place?.lat != null ? '查不到' : '无位置' }));
+    }
+  };
+  if (p.weather) paint(p.weather);
+  else if (p.place?.lat != null) {
+    dd.replaceChildren(h('span', { class: 'muted', text: '查询中…' }));
+    fetchWeather(p.place.lat, p.place.lng, entryDate(p)).then(async (w) => {
+      paint(w);
+      if (w) {
+        p.weather = w;
+        if (owner) { try { await updateDoc(doc(db, 'posts', p.id), { weather: w }); } catch {} } // remember it for next time
+      }
+    });
+  } else paint(null);
+  return h('div', {}, h('dt', { text: '天气' }), dd);
+}
+
+// ---------- Full-screen photo viewer (tap a photo on an entry) ----------
+function openViewer(files, start = 0) {
+  const slides = h('div', { class: 'viewer-slides' }, files.map(f => h('div', { class: 'viewer-slide' },
+    f.type === 'video'
+      ? h('video', { src: f.url, controls: true, playsInline: true, preload: 'metadata', poster: f.thumb })
+      : h('img', { src: f.url, alt: '' }))));
+  const close = () => { viewer.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const viewer = h('div', { class: 'viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': '查看原图' },
+    slides,
+    h('button', { class: 'media-btn viewer-close', type: 'button', 'aria-label': '关闭', onclick: close }, icon('close')));
+  document.addEventListener('keydown', onKey);
+  document.body.append(viewer);
+  slides.scrollLeft = start * slides.clientWidth;
+  viewer.querySelector('.viewer-close').focus();
+}
+
+// One entry: the photo fills the screen edge to edge and fades into the category colour,
+// so photo, title and text read as one piece rather than a picture with a card under it.
 function entryPage(id) {
   const p = posts.find(x => x.id === id);
-  if (!p) return h('div', {}, ...pageHead('Not found', '#/'), emptyEl('This entry was deleted or the link is wrong.'));
+  if (!p) return h('div', {}, ...pageHead('找不到这条记录', '#/'), emptyEl('它可能已被删除，或者链接有误。'));
 
   const cat = catOf(p);
   const color = colorOf(cat);
@@ -385,80 +474,96 @@ function entryPage(id) {
   const d = entryDate(p);
   const [yy, mm, dd] = d.split('-').map(Number);
   const back = () => (cameFromApp ? history.back() : go('#/'));
+  document.body.style.setProperty('--entry-c', color);
 
   const saveBtn = h('button', { class: 'media-btn right', type: 'button' });
   const paintSave = () => {
     const on = getSaved().has(p.id);
     saveBtn.classList.toggle('on', on);
-    saveBtn.setAttribute('aria-label', on ? 'Remove from Saved' : 'Save');
+    saveBtn.setAttribute('aria-label', on ? '取消收藏' : '收藏');
     saveBtn.setAttribute('aria-pressed', String(on));
     saveBtn.replaceChildren(icon('star', { filled: on }));
   };
   saveBtn.addEventListener('click', () => { toggleSaved(p.id); paintSave(); });
   paintSave();
 
-  let media = null;
+  let hero;
   if (files.length) {
     const slides = h('div', { class: 'slides' }, files.map((f, i) => h('div', { class: 'slide' },
       f.type === 'video'
         ? h('video', { src: f.url, controls: true, playsInline: true, preload: 'metadata', poster: f.thumb })
-        : h('img', { src: f.url, alt: entryTitle(p) || '', loading: i ? 'lazy' : 'eager' }))));
+        : h('img', {
+          src: f.url, alt: entryTitle(p) || '', loading: i ? 'lazy' : 'eager',
+          onclick: () => openViewer(files, i), style: 'cursor:zoom-in',
+        }))));
     const dots = files.length > 1 ? h('div', { class: 'dots' }, files.map((_, i) => h('i', { class: i ? '' : 'on' }))) : null;
     if (dots) slides.addEventListener('scroll', () => {
       const i = Math.round(slides.scrollLeft / slides.clientWidth);
       [...dots.children].forEach((dot, k) => dot.classList.toggle('on', k === i));
     }, { passive: true });
-    media = h('div', { class: 'entry-media' },
-      slides,
-      h('button', { class: 'media-btn left', type: 'button', 'aria-label': 'Back', onclick: back }, icon('chevron-left')),
-      saveBtn,
-      dots);
+    hero = h('div', { class: 'hero' }, slides, h('div', { class: 'hero-fade' }), dots);
+  } else {
+    hero = h('div', { class: 'hero hero-empty' });
   }
 
   const placeName = p.place?.name || (p.place?.lat != null ? `${p.place.lat.toFixed(2)}, ${p.place.lng.toFixed(2)}` : '');
   const kinds = new Set(files.map(f => f.type));
-  const filesLabel = kinds.size === 1 ? (kinds.has('video') ? 'Videos' : 'Photos') : 'Photos & videos';
+  const filesLabel = kinds.size === 1 ? (kinds.has('video') ? '视频' : '照片') : '照片和视频';
 
-  const body = h('div', {},
-    h('a', { class: 'entry-when', href: `#/folders/${encodeURIComponent(cat)}`, text: cat, style: 'text-decoration:none' }),
+  const body = h('div', { class: 'entry-body' },
+    h('a', { class: 'entry-when', href: `#/folders/${encodeURIComponent(cat)}`, text: labelOf(cat) }),
     h('h1', { class: 'entry-title', text: entryTitle(p) || placeName || fmtDate(d) }),
     h('dl', { class: 'stats' },
-      h('div', {}, h('dt', { text: 'Date' }), h('dd', {}, `${monthName(yy, mm, 'short')} ${dd}`, h('small', { text: String(yy) }))),
-      h('div', {}, h('dt', { text: 'Place' }), h('dd', { text: placeName || 'Not set' })),
+      h('div', {}, h('dt', { text: '日期' }), h('dd', {}, `${mm}月${dd}日`, h('small', { text: `${yy}年` }))),
+      h('div', {}, h('dt', { text: '地点' }), h('dd', { text: placeName || '未设置' })),
+      weatherCell(p),
       h('div', {}, h('dt', { text: filesLabel }), h('dd', { text: String(files.length) }))),
     p.text && h('p', { class: 'entry-text', text: p.text }),
     (p.tags || []).length > 0 && h('div', { class: 'tags' },
       p.tags.map(t => h('a', { class: 'tag', href: `#/search/${encodeURIComponent('#' + t)}`, text: t }))),
-    h('div', { class: 'entry-actions' },
-      !media && h('button', { class: 'pill-btn ghost', type: 'button', onclick: () => { toggleSaved(p.id); renderArchive(); } },
-        icon('star', { filled: getSaved().has(p.id) }), getSaved().has(p.id) ? 'Saved' : 'Save'),
-      owner && h('button', { class: 'pill-btn', type: 'button', onclick: () => editForm(p, card) }, icon('edit'), 'Edit'),
-      owner && h('button', { class: 'pill-btn ghost', type: 'button', onclick: () => removeEntry(p) }, icon('trash'), 'Delete')));
+    owner && h('div', { class: 'entry-actions' },
+      h('button', { class: 'pill-btn', type: 'button', onclick: () => editForm(p, body) }, icon('edit'), '编辑'),
+      h('button', { class: 'pill-btn ghost', type: 'button', onclick: () => removeEntry(p) }, icon('trash'), '删除')));
 
   const others = posts.filter(x => x.id !== p.id && catOf(x) === cat).sort(byNewest).slice(0, 9);
-  const more = others.length > 0 && h('section', { class: 'more' },
-    h('h2', { text: `More in ${cat}` }),
+  if (others.length) body.append(h('section', { class: 'more' },
+    h('h2', { text: `更多「${labelOf(cat)}」` }),
     h('div', { class: 'more-row' }, others.map(x => h('a', { href: `#/entry/${x.id}`, 'aria-label': entryTitle(x) || fmtDate(entryDate(x)) },
-      coverSrc(x) ? h('img', { src: coverSrc(x), alt: '', loading: 'lazy' }) : null))));
+      coverSrc(x) ? h('img', { src: coverSrc(x), alt: '', loading: 'lazy' }) : null)))));
 
-  const card = h('div', { class: 'entry-card', style: media ? '' : 'margin-top:0' }, body, more);
   const page = h('article', { class: 'entry', style: `--c:${color}` },
-    !media && pageHead('', '#/')[0],
-    media, card);
+    hero,
+    h('button', { class: 'media-btn left', type: 'button', 'aria-label': '返回', onclick: back }, icon('chevron-left')),
+    saveBtn,
+    body);
   page.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.target.closest('input, textarea, select')) back(); });
   return page;
 }
 
+// Big band titles shrink until they fit their space, whatever the screen width.
+function fitBands() {
+  document.querySelectorAll('.band-title').forEach(el => {
+    el.style.fontSize = '';
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    while (el.scrollWidth > el.clientWidth + 1 && size > 22) {
+      size -= 2;
+      el.style.fontSize = `${size}px`;
+    }
+  });
+}
+window.addEventListener('resize', fitBands);
+document.fonts?.ready.then(fitBands);
+
 function editForm(p, card) {
   if (card.querySelector('.edit-form')) return;
-  const title = h('input', { class: 'field', value: p.title || '', placeholder: 'Title', 'aria-label': 'Title' });
-  const date = h('input', { class: 'field', type: 'date', value: entryDate(p), 'aria-label': 'Date' });
-  const cat = h('select', { class: 'field', value: p.category || '', 'aria-label': 'Category' },
-    h('option', { value: '', text: 'No category' }),
-    ...[...new Set([...CATEGORIES, p.category].filter(Boolean))].map(c => h('option', { value: c, text: c })));
-  const tags = h('input', { class: 'field', value: (p.tags || []).join(', '), placeholder: 'Tags, separated by commas', 'aria-label': 'Tags' });
-  const place = h('input', { class: 'field', value: p.place?.name || '', placeholder: 'Place', 'aria-label': 'Place' });
-  const text = h('textarea', { class: 'field', placeholder: 'Write something', 'aria-label': 'Text' });
+  const title = h('input', { class: 'field', value: p.title || '', placeholder: '标题', 'aria-label': '标题' });
+  const date = h('input', { class: 'field', type: 'date', value: entryDate(p), 'aria-label': '日期' });
+  const cat = h('select', { class: 'field', value: p.category || '', 'aria-label': '分类' },
+    h('option', { value: '', text: '不分类' }),
+    ...[...new Set([...CATEGORIES, p.category].filter(Boolean))].map(c => h('option', { value: c, text: labelOf(c) })));
+  const tags = h('input', { class: 'field', value: (p.tags || []).join(', '), placeholder: '标签，用逗号分隔', 'aria-label': '标签' });
+  const place = h('input', { class: 'field', value: p.place?.name || '', placeholder: '地点', 'aria-label': '地点' });
+  const text = h('textarea', { class: 'field', placeholder: '写点什么', 'aria-label': '正文' });
   text.value = p.text || '';
 
   const save = h('button', {
@@ -478,15 +583,15 @@ function editForm(p, card) {
         await updateDoc(doc(db, 'posts', p.id), update);
         Object.assign(p, update);
         renderArchive();
-        toast('Changes saved');
+        toast('修改已保存');
       } catch (err) {
         console.error(err);
-        toast('Changes not saved: ' + (err.code || err.message));
+        toast('修改没有保存：' + (err.code || err.message));
         save.disabled = false;
       }
     },
-  }, icon('check'), 'Save changes');
-  const cancel = h('button', { class: 'pill-btn ghost', type: 'button', onclick: () => form.remove() }, 'Cancel');
+  }, icon('check'), '保存修改');
+  const cancel = h('button', { class: 'pill-btn ghost', type: 'button', onclick: () => form.remove() }, '取消');
 
   const form = h('div', { class: 'edit-form' },
     h('div', { class: 'two' }, title, date),
@@ -498,17 +603,17 @@ function editForm(p, card) {
 }
 
 async function removeEntry(p) {
-  if (!confirm('Delete this entry and its photos for good? This can’t be undone.')) return;
+  if (!confirm('要永久删除这条记录和它的照片吗？删除后无法恢复。')) return;
   try {
     await deleteDoc(doc(db, 'posts', p.id));
     await Promise.allSettled((p.files || []).flatMap(f =>
       [f.path || f.url, f.thumbPath].filter(Boolean).map(x => deleteObject(ref(storage, x)))));
     posts = posts.filter(x => x.id !== p.id);
-    toast('Entry deleted');
+    toast('记录已删除');
     go(`#/folders/${encodeURIComponent(catOf(p))}`);
   } catch (err) {
     console.error(err);
-    toast('Entry not deleted: ' + (err.code || err.message));
+    toast('记录没有删除：' + (err.code || err.message));
   }
 }
 
@@ -527,7 +632,7 @@ function loadLeaflet() {
 
 async function renderMap() {
   let L;
-  try { L = await loadLeaflet(); } catch { $('#map').textContent = 'The map could not load. Check your connection and open it again.'; return; }
+  try { L = await loadLeaflet(); } catch { $('#map').textContent = '地图加载失败，请检查网络后重新打开。'; return; }
   if (!map) {
     map = L.map('map', { worldCopyJump: true }).setView([30, 0], 2);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -552,7 +657,7 @@ async function renderMap() {
   if (located.length) {
     map.fitBounds(L.latLngBounds(located.map(p => [p.place.lat, p.place.lng])).pad(0.3), { maxZoom: 12 });
   } else {
-    toast('No entries have a place yet. Photos with location get one automatically.', 4000);
+    toast('还没有带地点的记录。带位置信息的照片会自动标上地点。', 4000);
   }
 }
 
@@ -599,22 +704,22 @@ async function videoFrame(file) {
           const wc = await sink.getCanvas(t);
           if (!wc) continue;
           if (!isDark(wc.canvas)) {
-            logLine(`cover for ${file.name}: frame at ${t.toFixed(1)}s`);
+            logLine(`封面 ${file.name}：取第 ${t.toFixed(1)} 秒的画面`);
             return await canvasToJpeg(wc.canvas);
           }
           fallback ||= wc.canvas;
         }
-        if (fallback) { logLine(`cover for ${file.name}: whole video is dark`); return await canvasToJpeg(fallback); }
+        if (fallback) { logLine(`封面 ${file.name}：整段视频都很暗`); return await canvasToJpeg(fallback); }
       }
     } catch (err) {
-      logLine(`cover for ${file.name}: decoder failed (${String(err?.message || err).slice(0, 80)}), trying the player`);
+      logLine(`封面 ${file.name}：解码失败（${String(err?.message || err).slice(0, 80)}），改用播放器`);
     } finally {
       try { input?.dispose?.(); } catch {}
     }
   }
   // 2) Fallback for browsers without a video decoder: the <video> element. A black result is thrown away.
   const blob = await videoFrameFromElement(file);
-  logLine(`cover for ${file.name}: ${blob ? 'from player' : 'none (could not get a picture)'}`);
+  logLine(`封面 ${file.name}：${blob ? '来自播放器' : '无（取不到画面）'}`);
   return blob;
 }
 
@@ -686,7 +791,7 @@ async function shrinkVideo(file, onProgress) {
     } catch (err) {
       if (cancelRequested) return null;
       console.warn(`Video compression (${hardwareAcceleration}) failed:`, err.message || err);
-      logLine(`compress (${hardwareAcceleration}) failed: ${String(err?.message || err).slice(0, 120)}`);
+      logLine(`压缩（${hardwareAcceleration}）失败：${String(err?.message || err).slice(0, 120)}`);
     }
   }
   return null;
@@ -877,8 +982,8 @@ async function shrink(file) {
 
 let groups = []; // [{ id, date, title, text, category, tags, place, items: [{ file, meta, preview, shrunk }] }]
 
-$('#bulkCategory').replaceChildren(h('option', { value: '', text: '— let AI choose —' }),
-  ...CATEGORIES.map(c => h('option', { value: c, text: c })));
+$('#bulkCategory').replaceChildren(h('option', { value: '', text: '— 让 AI 选择 —' }),
+  ...CATEGORIES.map(c => h('option', { value: c, text: labelOf(c) })));
 
 const drop = $('#drop');
 $('#files').addEventListener('change', (e) => addFiles([...e.target.files]));
@@ -894,8 +999,8 @@ $('#clearBtn').addEventListener('click', () => {
 function cancelUpload() {
   if (cancelRequested) return;
   cancelRequested = true;
-  logLine('cancel requested');
-  $('#progress').textContent = 'Cancelling…';
+  logLine('已请求取消');
+  $('#progress').textContent = '正在取消…';
   $('#clearBtn').disabled = true;
   try { currentConversion?.cancel(); } catch {}
   for (const entry of active) { entry.byUser = true; entry.task.cancel(); }
@@ -918,7 +1023,7 @@ async function addFiles(files) {
   if (!files.length) return;
   // Originals up to 4 GB are fine: they get compressed before upload.
   const tooBig = files.filter(f => f.type.startsWith('video/') && f.size > 4e9);
-  if (tooBig.length) toast(`${tooBig.length} video(s) over 4 GB skipped. Trim them first.`, 5000);
+  if (tooBig.length) toast(`有 ${tooBig.length} 个视频超过 4 GB，已跳过，请先剪短。`, 5000);
   files = files.filter(f => !tooBig.includes(f));
 
   // Read two files at a time and show each one as soon as it's ready, instead of waiting for all of them.
@@ -926,7 +1031,7 @@ async function addFiles(files) {
   let readCount = 0;
   readingNow++;
   $('#uploadBtn').disabled = true;            // wait until everything is read
-  $('#progress').textContent = `Reading 0 of ${files.length}…`;
+  $('#progress').textContent = `正在读取 0/${files.length}…`;
   try {
   await pool(files, 2, async (file) => {
     if (gen !== readGen) return;              // Clear was pressed
@@ -942,9 +1047,9 @@ async function addFiles(files) {
     if (gen !== readGen) { if (preview) URL.revokeObjectURL(preview); return; }
     pendingItems.push({ file, meta, shrunk, frame, preview });
     readCount++;
-    $('#progress').textContent = readCount < files.length ? `Reading ${readCount} of ${files.length}…` : '';
-    logLine(`read ${file.name} · ${file.type || 'no type'} · ${mb(file.size)} · date ${meta.date} from ${meta.dateSource}` +
-      ` · ${meta.lat != null ? 'GPS ✓' : 'no GPS'} · ${shrunk ? 'photo ✓' : frame ? 'video cover ✓' : isImage ? 'photo ✕ (could not open)' : 'video cover ✕'}` +
+    $('#progress').textContent = readCount < files.length ? `正在读取 ${readCount}/${files.length}…` : '';
+    logLine(`读取 ${file.name} · ${file.type || '无类型'} · ${mb(file.size)} · 日期 ${meta.date}（来源：${{ photo: '照片信息', video: '视频信息', file: '文件日期' }[meta.dateSource]}）` +
+      ` · ${meta.lat != null ? 'GPS ✓' : '无 GPS'} · ${shrunk ? '照片 ✓' : frame ? '视频封面 ✓' : isImage ? '照片 ✕（打不开）' : '视频封面 ✕'}` +
       ` · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     regroup();
   });
@@ -952,7 +1057,7 @@ async function addFiles(files) {
     readingNow--;
     if (!readingNow && !uploading) $('#uploadBtn').disabled = false;
   }
-  if (gen !== readGen) { logLine('reading cancelled'); return; }
+  if (gen !== readGen) { logLine('已取消读取'); return; }
   $('#progress').textContent = '';
   if ($('#autoAi').checked) groups.filter(g => !g.aiDone).forEach(g => suggest(g, { auto: true }));
 }
@@ -986,8 +1091,8 @@ function regroup() {
 function renderGroups() {
   $('#uploadRow').hidden = !groups.length;
   $('#dropText').textContent = groups.length
-    ? `${groups.reduce((n, g) => n + g.items.length, 0)} file(s) ready — tap to add more`
-    : 'Tap to choose files, or drop them here';
+    ? `${groups.reduce((n, g) => n + g.items.length, 0)} 个文件已选好，点这里继续添加`
+    : '选择照片和视频，或拖到这里';
   $('#groups').replaceChildren(...groups.map(groupEl));
 }
 
@@ -1006,33 +1111,33 @@ function groupEl(g) {
       bind(h('input', { class: 'field', type: 'date', value: g.date }), 'date'),
       g.place?.lat != null && h('span', { class: 'gps' }, icon('pin'), `${g.place.lat}, ${g.place.lng}`),
       h('button', {
-        class: 'btn small ai', disabled: !!g.aiBusy, 'aria-label': 'Let AI fill this in',
+        class: 'btn small ai', disabled: !!g.aiBusy, 'aria-label': '让 AI 填写',
         onclick: () => suggest(g),
-      }, icon('sparkle'), g.aiBusy ? 'Thinking…' : 'AI'),
-      h('span', { class: 'count', text: `${g.items.length} file(s)` }),
+      }, icon('sparkle'), g.aiBusy ? '思考中…' : 'AI 填写'),
+      h('span', { class: 'count', text: `${g.items.length} 个文件` }),
       h('button', {
-        class: 'btn small icon-only', 'aria-label': 'Remove this entry',
+        class: 'btn small icon-only', 'aria-label': '移除这一条',
         onclick: () => { groups = groups.filter(x => x !== g); renderGroups(); },
       }, icon('close'))),
     h('div', { class: 'thumbs' }, g.items.map(thumbWithProgress)),
-    noPlace && h('p', { class: 'hint', text: 'No location: iPhone leaves it out by default. In the photo picker, tap “Options” at the top and turn on Location, then pick the photos again.' }),
-    dateGuessed && h('p', { class: 'hint warn' }, icon('alert'), h('span', { text: "Couldn't find when this was taken, so the date is the file's date. Check it before uploading." })),
-    heic > 0 && h('p', { class: 'hint', text: `${heic} HEIC photo(s) couldn't be opened. Try again, or export them from iCloud as JPEG (“Most Compatible”).` }),
-    bind(h('input', { class: 'field', value: g.title, placeholder: 'Title', style: 'width:100%;margin-bottom:8px' }), 'title'),
-    bind(h('textarea', { class: 'field', placeholder: 'What happened? (optional)', value: g.text }), 'text'),
+    noPlace && h('p', { class: 'hint', text: '没有位置信息：iPhone 默认不提供。在选照片的界面点顶部的“选项”，打开“位置”，再重新选一次。' }),
+    dateGuessed && h('p', { class: 'hint warn' }, icon('alert'), h('span', { text: '找不到拍摄时间，现在显示的是文件日期，上传前请检查。' })),
+    heic > 0 && h('p', { class: 'hint', text: `有 ${heic} 张 HEIC 照片打不开。请重试，或在 iCloud 里导出为 JPEG（“兼容性最佳”）。` }),
+    bind(h('input', { class: 'field', value: g.title, placeholder: '标题', style: 'width:100%;margin-bottom:8px' }), 'title'),
+    bind(h('textarea', { class: 'field', placeholder: '发生了什么？（可不填）', value: g.text }), 'text'),
     h('div', { class: 'line' },
       bind(h('select', { class: 'field', value: g.category },
-        h('option', { value: '', text: '— category —' }),
-        ...CATEGORIES.map(c => h('option', { value: c, text: c }))), 'category'),
-      bind(h('input', { class: 'field', value: g.tags.join(', '), placeholder: 'tags' }), 'tags', parseTags),
-      bind(h('input', { class: 'field', value: g.placeName ?? g.place?.name ?? '', placeholder: 'Place' }), 'placeName')));
+        h('option', { value: '', text: '— 分类 —' }),
+        ...CATEGORIES.map(c => h('option', { value: c, text: labelOf(c) }))), 'category'),
+      bind(h('input', { class: 'field', value: g.tags.join(', '), placeholder: '标签' }), 'tags', parseTags),
+      bind(h('input', { class: 'field', value: g.placeName ?? g.place?.name ?? '', placeholder: '地点' }), 'placeName')));
 }
 
 // ---------- AI (Gemini via Firebase AI Logic) ----------
 let modelPromise = null;
 async function getModel() {
   modelPromise ||= (async () => {
-    const aiApp = await withTimeout(getAiApp(), 20000, 'App Check (reCAPTCHA) did not answer');
+    const aiApp = await withTimeout(getAiApp(), 20000, 'App Check（reCAPTCHA）没有响应');
     const { getAI, getGenerativeModel, GoogleAIBackend, Schema } = await import(`${FB_SDK}/firebase-ai.js`);
     const ai = getAI(aiApp, { backend: new GoogleAIBackend() });
     return getGenerativeModel(ai, {
@@ -1070,7 +1175,7 @@ async function suggest(g, { auto = false } = {}) {
   if (g.aiBusy) return;
   if (!AI_HOSTS.includes(location.hostname)) {
     if (!auto || !previewNoticeShown) {
-      toast('Preview address: AI only works on the live site (ba-na-na121.github.io). Everything else here works.', 6000);
+      toast('预览地址：AI 只在正式网站（ba-na-na121.github.io）上可用，其他功能都正常。', 6000);
       previewNoticeShown = true;
     }
     return;
@@ -1078,7 +1183,7 @@ async function suggest(g, { auto = false } = {}) {
   // Photos use their thumbnail; videos use a still frame. HEIC photos can't be read by the browser.
   const images = g.items.map(i => i.shrunk?.thumb || i.frame).filter(Boolean).slice(0, 6);
   if (!images.length && !g.text) {
-    if (!auto) toast("AI can't read these files (HEIC photos aren't supported). Add a note and try again.", 5000);
+    if (!auto) toast('AI 读不了这些文件（不支持 HEIC 照片）。加一句备注再试试。', 5000);
     return;
   }
   g.aiBusy = true;
@@ -1091,16 +1196,16 @@ async function suggest(g, { auto = false } = {}) {
       g.place?.lat != null ? `GPS: ${g.place.lat}, ${g.place.lng}.` : 'No GPS.',
       g.text ? `The owner's note: "${g.text}"` : '',
       'Return JSON with:',
-      '- title: 2 to 6 words, specific to what is shown.',
+      '- title: 4 to 12 Chinese characters, specific to what is shown.',
       '- caption: one or two plain sentences describing the moment. Do not invent names of people.',
       `- category: exactly one of ${CATEGORIES.join(', ')}.`,
       '- tags: 3 to 8 short lowercase tags (things, activities, mood, season).',
       '- place: if GPS is given, the neighborhood and city it points to; otherwise a clearly recognizable landmark or city, else an empty string.',
-      'If the owner\'s note is in Chinese, write title, caption and tags in Chinese; otherwise in English.',
+      'Write title, caption, tags and place in Simplified Chinese (keep well-known English place names like SoHo as they are).',
     ].filter(Boolean).join('\n');
     const parts = [prompt, ...await Promise.all(images.map(async b =>
       ({ inlineData: { mimeType: b.type, data: await blobToBase64(b) } })))];
-    const result = await withTimeout(model.generateContent(parts), 45000, 'AI took too long');
+    const result = await withTimeout(model.generateContent(parts), 45000, 'AI 响应超时');
     const out = JSON.parse(result.response.text());
     if (!g.title && out.title) g.title = out.title.trim();
     if (!g.text && out.caption) g.text = out.caption.trim();
@@ -1111,7 +1216,7 @@ async function suggest(g, { auto = false } = {}) {
       g.place = { ...(g.place || {}), name: out.place.trim() };
     }
     g.aiDone = true;
-    logLine(`AI ✓ ${g.date}: "${g.title}"`);
+    logLine(`AI ✓ ${g.date}：“${g.title}”`);
   } catch (err) {
     console.error('AI failed:', err);
     logLine(`AI ✕ ${g.date}: ${err?.code || ''} ${String(err?.message || err).slice(0, 160)}`);
@@ -1119,10 +1224,10 @@ async function suggest(g, { auto = false } = {}) {
     const msg = String(err?.message || err);
     const local = ['localhost', '127.0.0.1'].includes(location.hostname);
     toast(
-      /APP_CHECK_SITE_KEY/.test(msg) ? 'AI is off: the App Check key is not set yet.'
-      : /App Check/i.test(msg) && local ? 'AI blocked on this computer: add the App Check debug token from the console (F12) in Firebase → App Check.'
-      : /App Check/i.test(msg) ? 'AI blocked by App Check. Check the reCAPTCHA key and its allowed domains.'
-      : 'AI could not help this time: ' + (err?.code || msg).slice(0, 120),
+      /APP_CHECK_SITE_KEY/.test(msg) ? 'AI 未开启：还没有设置 App Check 密钥。'
+      : /App Check/i.test(msg) && local ? 'AI 在这台电脑上被拦截：请把控制台（F12）里的 App Check 调试令牌添加到 Firebase → App Check。'
+      : /App Check/i.test(msg) ? 'AI 被 App Check 拦截，请检查 reCAPTCHA 密钥和允许的网域。'
+      : 'AI 这次没能完成：' + (err?.code || msg).slice(0, 120),
       7000);
   } finally {
     g.aiBusy = false;
@@ -1157,7 +1262,7 @@ function paintItem(i) {
   i.ui.wrap.dataset.phase = i.phase || '';
   i.ui.bar.style.width = `${i.phase === 'done' ? 100 : pct}%`;
   i.ui.label.textContent = {
-    wait: 'waiting', compress: `compress ${pct}%`, upload: `${pct}%`, done: 'done', error: 'failed', skip: 'too big', cancel: 'cancelled',
+    wait: '等待', compress: `压缩 ${pct}%`, upload: `${pct}%`, done: '完成', error: '失败', skip: '太大', cancel: '已取消',
   }[i.phase] || '';
   // Seconds spent at this step, once it's been a while.
   const secs = Math.round((Date.now() - (i.since || Date.now())) / 1000);
@@ -1201,11 +1306,11 @@ async function putFileOnce(path, blob, onBytes, label) {
   // can hang forever with no error; reading it first either works or fails with a clear error.
   let data = blob;
   if (blob.size <= IN_MEMORY_MAX) {
-    data = new Uint8Array(await withTimeout(blob.arrayBuffer(), 60000, 'reading the file from the phone took too long'));
+    data = new Uint8Array(await withTimeout(blob.arrayBuffer(), 60000, '从手机读取文件超时'));
   }
   if (cancelRequested) throw cancelledError();
   const t0 = Date.now();
-  logLine(`↑ ${label}: sending ${mb(blob.size)} (${blob.type || 'no type'})`);
+  logLine(`↑ ${label}：发送 ${mb(blob.size)}（${blob.type || '无类型'}）`);
   return new Promise((resolve, reject) => {
     const task = uploadBytesResumable(ref(storage, path), data, { contentType: blob.type || 'application/octet-stream' });
     const entry = { task, lastChange: Date.now(), stalled: false, byUser: false };
@@ -1218,7 +1323,7 @@ async function putFileOnce(path, blob, onBytes, label) {
     task.on('state_changed',
       (s) => {
         if (s.bytesTransferred !== last) {
-          if (!last) logLine(`  ${label}: first bytes reached the server after ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+          if (!last) logLine(`  ${label}：${((Date.now() - t0) / 1000).toFixed(1)} 秒后第一批数据到达服务器`);
           onBytes(s.bytesTransferred - last); last = s.bytesTransferred; entry.lastChange = Date.now();
         }
       },
@@ -1226,10 +1331,10 @@ async function putFileOnce(path, blob, onBytes, label) {
         end();
         onBytes(-last);
         if (entry.byUser) err = cancelledError();
-        else if (entry.stalled) err = Object.assign(new Error(`no progress for ${STALL_MS / 1000}s`), { code: 'stalled' });
+        else if (entry.stalled) err = Object.assign(new Error(`${STALL_MS / 1000} 秒没有进展`), { code: 'stalled' });
         else {
           const server = err?.customData?.serverResponse;
-          if (server) logLine(`  server said: ${String(server).replace(/\s+/g, ' ').slice(0, 300)}`);
+          if (server) logLine(`  服务器返回：${String(server).replace(/\s+/g, ' ').slice(0, 300)}`);
         }
         reject(err);
       },
@@ -1249,10 +1354,10 @@ async function putFile(path, blob, onBytes, label = path) {
       if (cancelRequested || err.code === 'cancelled') throw cancelledError();
       const why = err.code === 'stalled' ? err.message : (err.code || err.message);
       if (attempt >= 4 || err.code === 'storage/unauthorized' || err.code === 'storage/unauthenticated') {
-        logLine(`✕ ${label}: ${why} (gave up after ${attempt} tries)`);
+        logLine(`✕ ${label}：${why}（试了 ${attempt} 次，放弃）`);
         throw err;
       }
-      logLine(`↻ ${label}: ${why} — trying again (${attempt + 1}/4)`);
+      logLine(`↻ ${label}：${why}，正在重试（${attempt + 1}/4）`);
       await sleep(1500 * attempt);
     }
   }
@@ -1262,7 +1367,7 @@ async function putFile(path, blob, onBytes, label = path) {
 // stopped moving instead of waiting for the stall timer.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !active.size) return;
-  logLine(`page visible again — checking ${active.size} upload(s)`);
+  logLine(`回到页面，检查 ${active.size} 个上传`);
   for (const entry of active) {
     if (Date.now() - entry.lastChange > 4000) { entry.stalled = true; entry.task.cancel(); }
   }
@@ -1277,7 +1382,7 @@ $('#uploadBtn').addEventListener('click', async () => {
   btn.disabled = true;
   uploading = true;
   cancelRequested = false;
-  $('#clearBtn').textContent = 'Cancel';
+  $('#clearBtn').textContent = '取消';
   $('#clearBtn').disabled = false;
   document.querySelector('details.log')?.setAttribute('open', '');
   $('#barWrap').hidden = false;
@@ -1295,8 +1400,8 @@ $('#uploadBtn').addEventListener('click', async () => {
   const paintTotal = () => { $('#bar').style.width = `${Math.min(100, (sent / total) * 100).toFixed(1)}%`; };
   const skipped = [];
   items.forEach(i => { if (i.record === undefined) setItem(i, 'wait'); });
-  $('#progress').textContent = `Uploading ${items.length} file(s)… if you switch apps it will continue when you come back.`;
-  logLine(`upload started: ${items.filter(i => i.record === undefined).length} file(s), ${mb(total)}`);
+  $('#progress').textContent = `正在上传 ${items.length} 个文件…切到别的 App 也没关系，回来后会自动继续。`;
+  logLine(`开始上传：${items.filter(i => i.record === undefined).length} 个文件，${mb(total)}`);
 
   // Upload one file (plus its thumbnail). Stores the result on the item, so a retry skips finished files.
   const uploadItem = async (it) => {
@@ -1326,8 +1431,8 @@ $('#uploadBtn').addEventListener('click', async () => {
         if (cancelRequested) throw cancelledError();
         const blob = small || it.file;
         if (small) { total -= it.file.size - small.size; itemTotal -= it.file.size - small.size; paintTotal(); }
-        else toast(`Couldn't compress ${it.file.name} in this browser — uploading the original.`, 4000);
-        logLine(small ? `compressed ${it.file.name}: ${mb(it.file.size)} → ${mb(small.size)}` : `could not compress ${it.file.name} — sending original ${mb(it.file.size)}`);
+        else toast(`这个浏览器压缩不了 ${it.file.name}，改为上传原文件。`, 4000);
+        logLine(small ? `已压缩 ${it.file.name}：${mb(it.file.size)} → ${mb(small.size)}` : `无法压缩 ${it.file.name}，上传原文件 ${mb(it.file.size)}`);
         if (blob.size > MAX_VIDEO_MB * 1e6) {
           skipped.push(it.file.name);
           it.record = null;
@@ -1350,7 +1455,7 @@ $('#uploadBtn').addEventListener('click', async () => {
         it.record = { type: 'image', url: await putFile(path, it.file, onBytes, it.file.name), path };
       }
       setItem(it, 'done');
-      logLine(`✓ ${it.file.name} uploaded`);
+      logLine(`✓ ${it.file.name} 上传完成`);
     } catch (err) {
       it.error = err;
       if (err.code === 'cancelled') { setItem(it, 'cancel'); return; }
@@ -1374,7 +1479,9 @@ $('#uploadBtn').addEventListener('click', async () => {
       const placeName = (g.placeName ?? g.place?.name ?? '').trim();
       const place = g.place?.lat != null ? { lat: g.place.lat, lng: g.place.lng, name: placeName }
         : placeName ? { name: placeName } : null;
+      const weather = place?.lat != null ? await fetchWeather(place.lat, place.lng, g.date) : null;
       const entry = {
+        weather,
         title: (g.title || '').trim(),
         text: g.text || '',
         date: g.date,
@@ -1395,25 +1502,25 @@ $('#uploadBtn').addEventListener('click', async () => {
     }
 
     const left = groups.filter(g => !saved.includes(g));
-    const skipNote = skipped.length ? ` Skipped (still over ${MAX_VIDEO_MB} MB): ${skipped.join(', ')}.` : '';
+    const skipNote = skipped.length ? ` 已跳过（压缩后仍超过 ${MAX_VIDEO_MB} MB）：${skipped.join('、')}。` : '';
     renderArchive();
     if (!left.length) {
       clearGroups();   // (clears the status line too, so set the message after)
-      $('#progress').textContent = `Done — ${saved.length} entr${saved.length === 1 ? 'y' : 'ies'} added.${skipNote}`;
+      $('#progress').textContent = `完成，新增了 ${saved.length} 条记录。${skipNote}`;
       setTimeout(() => showView('archive'), 700);
     } else {
       groups = left;
       renderGroups();
       $('#progress').textContent = cancelRequested
-        ? `Cancelled. ${saved.length} saved; ${left.length} still here. Tap “Upload all” to continue — finished files won't be sent twice.`
-        : `${saved.length} saved, ${left.length} not yet (${firstError?.code || firstError?.message || 'error'}). ` +
-          `Tap “Upload all” again to retry — finished files won't be sent twice.${skipNote}`;
-      if (cancelRequested) logLine('upload cancelled');
+        ? `已取消。保存了 ${saved.length} 条，还有 ${left.length} 条没传完。点“全部上传”继续，已传完的文件不会重复上传。`
+        : `${saved.length} 条已保存，${left.length} 条还没有（${firstError?.code || firstError?.message || '出错'}）。` +
+          `再点一次“全部上传”重试，已传完的文件不会重复上传。${skipNote}`;
+      if (cancelRequested) logLine('上传已取消');
     }
   } finally {
     uploading = false;
     cancelRequested = false;
-    $('#clearBtn').textContent = 'Clear';
+    $('#clearBtn').textContent = '清空';
     $('#clearBtn').disabled = false;
     btn.disabled = false;
     $('#barWrap').hidden = true;
@@ -1427,12 +1534,12 @@ $('#copyLog')?.addEventListener('click', async () => {
   const text = `${navigator.userAgent}\n${location.href}\n\n${$('#log').textContent}`;
   try {
     await navigator.clipboard.writeText(text);
-    toast('Details copied — paste them into your message.');
+    toast('记录已复制，可以直接粘贴。');
   } catch {
     const range = document.createRange();             // fallback: select it so it can be copied by hand
     range.selectNodeContents($('#log'));
     const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
-    toast('Text selected — tap Copy.');
+    toast('已选中文字，点“拷贝”即可。');
   }
 });
 
@@ -1449,6 +1556,6 @@ onAuthStateChanged(auth, async (user) => {
   } catch (err) {
     console.error(err);
     $('#browseView').replaceChildren(h('p', { class: 'empty',
-      text: `The archive didn't load (${err.code || err.message}). Check your connection and reload the page.` }));
+      text: `档案没有加载出来（${err.code || err.message}）。请检查网络后刷新页面。` }));
   }
 });

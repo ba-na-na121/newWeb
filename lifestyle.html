@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#000000">
-  <title>Lifestyle · Wenzuo Xia</title>
+  <title>生活档案 · Wenzuo Xia</title>
   <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,26 +14,26 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="index.html" aria-label="Back to the home page">Wenzuo Xia</a>
-    <nav class="actions" aria-label="Archive">
-      <a class="icon-btn" href="#/search" data-icon="search" aria-label="Search" title="Search"></a>
-      <a class="icon-btn" href="#/map" data-icon="map" aria-label="Map" title="Map"></a>
-      <a class="icon-btn add-btn" href="#/add" data-icon="plus" id="addTab" aria-label="Add photos" title="Add photos" hidden></a>
-      <button class="icon-btn" type="button" data-icon="logout" id="logoutBtn" aria-label="Log out" title="Log out"></button>
+    <a class="brand" href="index.html" aria-label="返回首页">Wenzuo Xia</a>
+    <nav class="actions" aria-label="档案">
+      <a class="icon-btn" href="#/search" data-icon="search" aria-label="搜索" title="搜索"></a>
+      <a class="icon-btn" href="#/map" data-icon="map" aria-label="地图" title="地图"></a>
+      <a class="icon-btn add-btn" href="#/add" data-icon="plus" id="addTab" aria-label="添加照片" title="添加照片" hidden></a>
+      <button class="icon-btn" type="button" data-icon="logout" id="logoutBtn" aria-label="退出登录" title="退出登录"></button>
     </nav>
   </header>
 
   <main>
     <!-- BROWSE: folders, timeline, a folder, a year, a month, search, one entry (filled in by lifestyle.js) -->
     <section id="browseView" aria-live="polite">
-      <p class="loading">Loading your archive…</p>
+      <p class="loading">正在加载档案…</p>
     </section>
 
     <!-- MAP -->
     <section id="mapView" hidden>
       <div class="page-head">
-        <a class="back" href="#/" data-icon="chevron-left" aria-label="Back"></a>
-        <h1 class="page-title">Map</h1>
+        <a class="back" href="#/" data-icon="chevron-left" aria-label="返回"></a>
+        <h1 class="page-title">地图</h1>
       </div>
       <div id="map"></div>
     </section>
@@ -41,53 +41,52 @@
     <!-- ADD (owner only) -->
     <section id="addView" class="add" hidden>
       <div class="page-head">
-        <a class="back" href="#/" data-icon="chevron-left" aria-label="Back"></a>
-        <h1 class="page-title">Add to the archive</h1>
+        <a class="back" href="#/" data-icon="chevron-left" aria-label="返回"></a>
+        <h1 class="page-title">添加到档案</h1>
       </div>
       <p class="hint">
-        Pick photos and videos. Dates and places are read from the files when they have them,
-        and photos from the same day become one entry. You can change anything before uploading.
-        Photos are shrunk for the website, so keep your originals in iCloud.
+        选择照片和视频。文件里有拍摄日期和地点的话会自动读出来，同一天的照片会合成一条记录。
+        上传前都可以修改。照片会为网站压缩，原图请继续保存在 iCloud。
       </p>
 
       <label class="drop" id="drop">
         <input type="file" id="files" multiple accept="image/*,video/*">
         <span class="drop-icon" data-icon="upload"></span>
-        <span id="dropText">Choose photos and videos, or drop them here</span>
+        <span id="dropText">选择照片和视频，或拖到这里</span>
       </label>
 
       <div class="row">
-        <label>Category for all
+        <label>分类（全部）
           <select class="field" id="bulkCategory"></select>
         </label>
-        <label>Tags for all, separated by commas
-          <input class="field" id="bulkTags" placeholder="summer, nyc">
+        <label>标签（全部，用逗号分隔）
+          <input class="field" id="bulkTags" placeholder="夏天, 纽约">
         </label>
       </div>
       <div class="row">
-        <label class="toggle"><input type="checkbox" id="groupByDay" checked> Put photos from the same day in one entry</label>
-        <label class="toggle"><input type="checkbox" id="autoAi" checked> <span class="inline-icon" data-icon="sparkle"></span> Let AI fill in title, tags and category</label>
+        <label class="toggle"><input type="checkbox" id="groupByDay" checked> 同一天的照片合成一条记录</label>
+        <label class="toggle"><input type="checkbox" id="autoAi" checked> <span class="inline-icon" data-icon="sparkle"></span> 让 AI 填写标题、标签和分类</label>
       </div>
 
       <div class="groups" id="groups"></div>
 
       <div class="row" id="uploadRow" hidden>
-        <button class="btn primary" id="uploadBtn">Upload all</button>
-        <button class="btn" id="clearBtn">Clear</button>
+        <button class="btn primary" id="uploadBtn">全部上传</button>
+        <button class="btn" id="clearBtn">清空</button>
       </div>
       <div class="progress" id="progress"></div>
       <div class="bar" id="barWrap" hidden><i id="bar"></i></div>
 
       <details class="log">
-        <summary>Details: what was read and uploaded</summary>
-        <button class="btn small" id="copyLog" type="button">Copy details</button>
+        <summary>详细记录：读取和上传情况</summary>
+        <button class="btn small" id="copyLog" type="button">复制记录</button>
         <pre id="log"></pre>
       </details>
 
       <p class="legal">
-        AI suggestions are protected by reCAPTCHA. Google's
-        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Privacy Policy</a> and
-        <a href="https://policies.google.com/terms" target="_blank" rel="noopener">Terms of Service</a> apply.
+        AI 建议受 reCAPTCHA 保护，适用 Google
+        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">隐私权政策</a>和
+        <a href="https://policies.google.com/terms" target="_blank" rel="noopener">服务条款</a>。
       </p>
     </section>
   </main>
