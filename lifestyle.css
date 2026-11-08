@@ -483,7 +483,9 @@ textarea.field { resize: vertical; }
   .grid { gap: 18px 12px; }
 }
 
-/* ---------- 最近 reel ---------- */
+/* ---------- reel (one random category or city per visit) ---------- */
+.reel-label i { width: 8px; height: 8px; border-radius: 50%; background: var(--tc); }
+.reel-label .icon { width: 14px; height: 14px; color: var(--tc); }
 .reel {
   --c: #FF3B30;
   position: relative; display: block; overflow: hidden;
@@ -526,7 +528,7 @@ textarea.field { resize: vertical; }
 }
 .reel-sub.in { opacity: 1; }
 .reel-count { position: absolute; right: 16px; top: 22px; font-size: 12px; font-weight: 600; letter-spacing: .08em; font-variant-numeric: tabular-nums; opacity: .85; }
-.reel-label { position: absolute; left: 16px; top: 18px; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: rgba(0,0,0,.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.reel-label { position: absolute; left: 16px; top: 18px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: rgba(0,0,0,.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 .reel-bars { position: absolute; left: 16px; right: 16px; top: 8px; display: flex; gap: 4px; }
 .reel-bars i { flex: 1; height: 2px; border-radius: 2px; background: rgba(255,255,255,.3); overflow: hidden; }
 .reel-bars b { display: block; height: 100%; width: 0; background: #fff; }

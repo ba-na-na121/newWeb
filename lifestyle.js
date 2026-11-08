@@ -313,9 +313,34 @@ const imgSrcs = (p) => (p.files || []).map(f => f.type === 'video' ? f.thumb : (
 const thumbSrcs = (p) => (p.files || []).map(f => f.thumb || (f.type === 'image' ? f.url : null)).filter(Boolean);
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
+// One theme per visit: a category (日常, 朋友…) or a city (纽约…), picked at random and never the same
+// twice in a row. Only that theme's photos appear in the reel.
+let reelTheme = null;
+function pickReelTheme() {
+  if (reelTheme) return reelTheme;
+  const withPics = posts.filter(p => imgSrcs(p).length);
+  const themes = [];
+  const byCat = new Map(), byCity = new Map();
+  withPics.forEach(p => {
+    catsOf(p).forEach(c => byCat.set(c, [...(byCat.get(c) || []), p]));
+    const city = cityOf(p);
+    if (city) byCity.set(city, [...(byCity.get(city) || []), p]);
+  });
+  byCat.forEach((list, c) => themes.push({ key: 'cat:' + c, kind: 'cat', name: c, label: labelOf(c), color: colorOf(c), list }));
+  byCity.forEach((list, c) => { if (list.length >= 2) themes.push({ key: 'city:' + c, kind: 'city', name: c, label: c, color: '#F3EFE6', list }); });
+  if (!themes.length) return null;
+  let last = '';
+  try { last = localStorage.getItem('lifestyle.reelTheme') || ''; } catch {}
+  const pool = themes.length > 1 ? themes.filter(t => t.key !== last) : themes;
+  reelTheme = pool[Math.floor(Math.random() * pool.length)];
+  try { localStorage.setItem('lifestyle.reelTheme', reelTheme.key); } catch {}
+  return reelTheme;
+}
+
 function reelEl() {
-  const list = [...posts].sort(byNewest).filter(p => imgSrcs(p).length).slice(0, REEL_COUNT);
-  if (!list.length) return null;
+  const theme = pickReelTheme();
+  if (!theme) return null;
+  const list = [...theme.list].sort(byNewest).slice(0, REEL_COUNT);
   const bg = h('img', { class: 'reel-bg', alt: '' });
   const pips = h('div', { class: 'reel-pips', 'aria-hidden': 'true' });
   const word = h('div', { class: 'reel-word', 'aria-hidden': 'true' });
@@ -323,7 +348,8 @@ function reelEl() {
   const count = h('div', { class: 'reel-count', 'aria-hidden': 'true' });
   const bars = h('div', { class: 'reel-bars', 'aria-hidden': 'true' }, list.map(() => h('i', {}, h('b'))));
   const link = h('a', { class: 'reel', href: '#/' }, bg, h('div', { class: 'reel-shade' }), pips, word, sub, count, bars,
-    h('span', { class: 'reel-label', text: '最近' }));
+    h('span', { class: 'reel-label', style: `--tc:${theme.color}` },
+      theme.kind === 'city' ? icon('pin') : h('i'), theme.label));
 
   // Preload the photos so cuts are instant.
   list.forEach(p => imgSrcs(p).slice(0, 4).forEach(s => { const i = new Image(); i.src = s; }));
@@ -356,7 +382,8 @@ function reelEl() {
   };
   const popPips = async (p, ep) => {
     let srcs = thumbSrcs(p).slice(1, 4);
-    if (srcs.length < 2) srcs = [...srcs, ...list.filter(x => x !== p).map(x => thumbSrcs(x)[0]).filter(Boolean)].slice(0, 2);
+    // Only photos from the same theme.
+    if (srcs.length < 2) srcs = [...srcs, ...theme.list.filter(x => x !== p).map(x => thumbSrcs(x)[0]).filter(Boolean)].slice(0, 2);
     // Corners only, so the frames never cover the word in the middle.
     const spots = [[5, 13], [64, 12], [66, 66], [6, 68]].sort(() => Math.random() - 0.5);
     for (const [k, src] of srcs.entries()) {
@@ -377,7 +404,7 @@ function reelEl() {
     const p = list[i];
     const color = colorOf(catOf(p));
     link.href = `#/entry/${p.id}`;
-    link.setAttribute('aria-label', `最近：${entryTitle(p) || cityOf(p) || '无标题'}，${fmtDate(entryDate(p))}`);
+    link.setAttribute('aria-label', `${theme.label}：${entryTitle(p) || cityOf(p) || '无标题'}，${fmtDate(entryDate(p))}`);
     link.style.setProperty('--c', color);
     pips.replaceChildren();
     word.className = 'reel-word';
@@ -388,11 +415,13 @@ function reelEl() {
     sub.replaceChildren(
       h('span', { text: `#${String(posts.length - posts.slice().sort(byNewest).indexOf(p)).padStart(2, '0')}` }),
       h('span', { text: entryDate(p).replaceAll('-', '.') }),
-      cityOf(p) && entryTitle(p) && h('span', { text: entryTitle(p) }));
+      theme.kind === 'city' ? labelOf(catOf(p)) && h('span', { text: labelOf(catOf(p)) })
+        : cityOf(p) && entryTitle(p) && h('span', { text: entryTitle(p) }));
     [...bars.children].forEach((b, k) => { b.className = k < i ? 'done' : k === i ? 'now' : ''; });
     bars.style.setProperty('--dur', `${REEL_MS}ms`);
 
-    const big = cityOf(p) || entryTitle(p) || labelOf(catOf(p));
+    // A city reel already says the city, so it shows each entry's title instead.
+    const big = (theme.kind === 'city' ? entryTitle(p) || cityOf(p) : cityOf(p) || entryTitle(p)) || labelOf(catOf(p));
     // Shrink the word until it fits on one line.
     word.style.fontSize = '';
     word.replaceChildren(h('span', { text: big }));
