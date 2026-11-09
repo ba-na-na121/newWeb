@@ -93,10 +93,16 @@ let loaded = false;
 // ---------- Routing ----------
 // #/            all          #/c/Fashion   one category     #/tag/xyz   one tag
 // #/idea/<id>   one idea     #/shopping    shopping list (owner)
+// #/grid  masonry   #/index  drawer of aesthetics (the last one you picked opens by default)
+// #/core/<name>  one aesthetic
 function parseRoute() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   return { name: parts[0] || '', arg: parts[1] || '' };
 }
+const store = {
+  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
 window.addEventListener('hashchange', route);
 function route() {
   if (!loaded) return;
@@ -109,30 +115,96 @@ function route() {
     v.replaceChildren(...(it ? ideaPage(it) : [h('p', { class: 'empty', text: '找不到这张灵感图。' })]));
   } else if (name === 'shopping' && owner) {
     v.replaceChildren(...shoppingPage());
+  } else if (name === 'index' || (name === '' && store.get('ideas.view') === 'index')) {
+    store.set('ideas.view', 'index');
+    v.replaceChildren(...indexPage());
   } else {
-    v.replaceChildren(...boardPage(name === 'c' ? arg : '', name === 'tag' ? arg : ''));
+    if (name === 'grid') store.set('ideas.view', 'grid');
+    v.replaceChildren(...boardPage(name === 'c' ? arg : '', name === 'tag' ? arg : '', name === 'core' ? arg : ''));
   }
   window.scrollTo(0, 0);
 }
 
 // ---------- Board (masonry, like Pinterest) ----------
-function boardPage(cat, tag) {
-  const list = ideas.filter(x => (!cat || x.category === cat) && (!tag || (x.tags || []).includes(tag)));
+// Each idea gets a running number in upload order, shown like a catalogue entry (No.026).
+function numberOf(it) {
+  const sorted = [...ideas].sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  return String(sorted.indexOf(it) + 1).padStart(3, '0');
+}
+const coreKey = (it) => (it.core?.name || '').trim();
+const viewSwitch = (current) => h('div', { class: 'seg', role: 'tablist', 'aria-label': '视图' },
+  h('a', { href: '#/grid', class: current === 'grid' ? 'on' : '', role: 'tab', 'aria-selected': String(current === 'grid') }, '瀑布流'),
+  h('a', { href: '#/index', class: current === 'index' ? 'on' : '', role: 'tab', 'aria-selected': String(current === 'index') }, '索引'));
+
+function boardPage(cat, tag, core) {
+  const list = ideas.filter(x => (!cat || x.category === cat) && (!tag || (x.tags || []).includes(tag))
+    && (!core || coreKey(x).toLowerCase() === core.toLowerCase()));
   const chip = (href, text, on, color) => h('a', { class: 'filter' + (on ? ' on' : ''), href, style: color ? `--c:${color}` : null },
     color && h('i'), text);
   const filters = h('nav', { class: 'filters', 'aria-label': '分类' },
-    chip('#/', '全部', !cat && !tag),
+    chip('#/grid', '全部', !cat && !tag && !core),
     CATS.map(c => chip(`#/c/${c}`, labelOf(c), cat === c, colorOf(c))),
-    tag && chip(`#/tag/${encodeURIComponent(tag)}`, `#${tag}`, true));
+    tag && chip(`#/tag/${encodeURIComponent(tag)}`, `#${tag}`, true),
+    core && chip(`#/core/${encodeURIComponent(core)}`, core, true));
   const head = h('div', { class: 'board-head' },
-    h('h1', { class: 'page-title', text: tag ? `#${tag}` : cat ? labelOf(cat) : '灵感' }),
-    h('span', { class: 'count', text: `${list.length} 张` }));
+    h('h1', { class: 'page-title', text: tag ? `#${tag}` : core || (cat ? labelOf(cat) : '灵感') }),
+    h('span', { class: 'count', text: `${list.length} 张` }),
+    viewSwitch('grid'));
   if (!list.length) {
     return [head, filters, h('div', { class: 'empty' },
       h('p', { text: ideas.length ? '这里还没有内容。' : '还没有灵感图。' }),
       owner && h('button', { class: 'pill-btn solid', type: 'button', onclick: () => $('#files').click() }, icon('plus'), '上传第一张'))];
   }
-  return [head, filters, h('div', { class: 'masonry' }, list.map(pinEl))];
+  return [head, filters, h('div', { class: 'masonry' }, list.map(pinEl)), owner && upgradeButton()];
+}
+
+// Ideas analysed before the three similar rows and the meters existed: fill them in, one by one.
+function upgradeButton() {
+  const todo = ideas.filter(x => !x.rows && x.status !== 'analyzing');
+  if (!todo.length) return null;
+  const btn = h('button', { class: 'chip-btn', type: 'button' }, icon('sparkle'), `补全分析（${todo.length} 张）`);
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    let k = 0;
+    for (const it of todo) {
+      btn.lastChild.textContent = `正在补全 ${++k} / ${todo.length}…`;
+      const snap = await getDoc(doc(db, 'ideaSrc', it.id)).catch(() => null);
+      if (snap?.exists()) await analyze(it, snap.data());
+    }
+    toast('补全完成');
+    route();
+  });
+  return h('div', { class: 'upgrade' }, btn, h('small', { text: '给旧的图补上三排相似灵感和风格刻度，已经改过的标题和分类不会变。' }));
+}
+
+// ---------- Index: a drawer of tabbed cards, one per aesthetic ----------
+function indexPage() {
+  const groups = new Map();
+  for (const it of ideas) {
+    const k = coreKey(it) || '未分析';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(it);
+  }
+  const list = [...groups.entries()].sort((a, b) => (a[0] === '未分析') - (b[0] === '未分析') || b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  const head = h('div', { class: 'board-head' },
+    h('h1', { class: 'page-title', text: '索引' }),
+    h('span', { class: 'count', text: `${list.length} 种风格` }),
+    viewSwitch('index'));
+  if (!list.length) return [head, h('div', { class: 'empty' }, h('p', { text: '还没有灵感图。' }))];
+  const drawer = h('div', { class: 'drawer' },
+    list.map(([name, items], i) => {
+      const zh = items.find(x => x.core?.nameZh)?.core.nameZh || '';
+      const cover = items[0].file?.thumb || items[0].file?.url;
+      return h('a', {
+        class: 'tabcard', href: `#/core/${encodeURIComponent(name)}`,
+        style: `--x:${(i * 29) % 58}%;--z:${i}`,
+        'aria-label': `${name}${zh ? '，' + zh : ''}，${items.length} 张`,
+      },
+        h('span', { class: 'tab' }, h('b', { text: name }), h('small', { text: [zh, items.length].filter(Boolean).join(' · ') })),
+        h('span', { class: 'strip' }, cover && h('img', { src: cover, alt: '', loading: 'lazy' })));
+    }),
+    h('div', { class: 'drawer-base', 'aria-hidden': 'true' }, h('i')));
+  return [head, drawer];
 }
 
 function pinEl(it) {
@@ -145,24 +217,53 @@ function pinEl(it) {
       shopping.has(it.id) && h('span', { class: 'pin-badge shop' }, icon('bag'))),
     h('div', { class: 'pin-meta' },
       h('i', { class: 'dot' }),
-      h('span', { class: 'pin-title', text: it.title || '未命名' }),
-      it.core?.name && h('span', { class: 'pin-core', text: it.core.name })));
+      h('span', { class: 'pin-title', text: it.title || '未命名' })),
+    h('div', { class: 'pin-code', text: [coreKey(it).toUpperCase(), numberOf(it)].filter(Boolean).join(' · ') }));
 }
 
 // ---------- One idea ----------
+const PAPER = '#F2EFE8';
 function ideaPage(it) {
   const c = colorOf(it.category);
-  document.body.style.setProperty('--entry-c', c);
+  document.body.style.setProperty('--entry-c', PAPER);
   const f = it.file || {};
+  // The photo fills the top and dissolves into the paper-white sheet; tap it to see the whole picture.
   const hero = h('div', { class: 'hero idea-hero' },
-    h('img', { class: 'idea-blur', src: f.thumb || f.url, alt: '' }),
     h('img', { class: 'idea-img', src: f.url, alt: it.title || '', onclick: () => openViewer(f.url) }),
     h('div', { class: 'hero-fade' }));
   const back = h('a', { class: 'media-btn left', href: it.category ? `#/c/${it.category}` : '#/', 'aria-label': '返回' }, icon('chevron-left'));
   const body = h('div', { class: 'entry-body idea-body' });
   const paint = () => body.replaceChildren(...ideaBody(it, body, paint));
   paint();
-  return [h('article', { class: 'entry idea', style: `--c:${c}` }, hero, back, body)];
+  return [h('article', { class: 'entry idea', style: `--c:${PAPER};--accent:${c}` }, hero, back, body)];
+}
+
+// The five style meters (0 = left word, 1 = right word).
+const AXES = [['ornate', '极简', '繁复'], ['warm', '冷', '暖'], ['hard', '柔', '硬'], ['futuristic', '复古', '未来'], ['digital', '手作', '数字']];
+
+// Pictures from your own board that are similar, put first in each row.
+function ownSimilar(it, kind) {
+  const others = ideas.filter(x => x !== it && x.file);
+  const tags = new Set(it.tags || []);
+  const overlap = (x) => (x.tags || []).filter(t => tags.has(t)).length;
+  let list = [];
+  if (kind === 'style') list = others.filter(x => coreKey(x) && coreKey(x).toLowerCase() === coreKey(it).toLowerCase());
+  if (kind === 'culture') list = others.filter(x => overlap(x) >= 2).sort((a, b) => overlap(b) - overlap(a));
+  if (kind === 'type') list = others.filter(x => (it.labels?.type && x.labels?.type === it.labels.type) || x.category === it.category)
+    .sort((a, b) => (b.labels?.type === it.labels?.type) - (a.labels?.type === it.labels?.type));
+  return list.slice(0, 4).map(x => ({ own: true, id: x.id, title: x.title, img: x.file.thumb || x.file.url, sub: coreKey(x) || labelOf(x.category) }));
+}
+
+function rail(title, sub, items) {
+  if (!items.length) return null;
+  return h('section', { class: 'idea-sec rail-sec' },
+    h('h2', {}, title, sub && h('span', { text: sub })),
+    h('div', { class: 'rail' }, items.map(x => h('a', x.own
+      ? { class: 'rail-item own', href: `#/idea/${x.id}` }
+      : { class: 'rail-item', href: x.link, target: '_blank', rel: 'noopener' },
+      h('span', { class: 'rail-img' }, h('img', { src: x.img, alt: x.title || '', loading: 'lazy' }), x.own && h('em', { text: '我的' })),
+      h('b', { text: x.title || '' }),
+      h('small', { text: x.own ? x.sub : [x.creator, x.date, x.source].filter(Boolean).join(' · ') })))));
 }
 
 function ideaBody(it, body, repaint) {
@@ -171,19 +272,37 @@ function ideaBody(it, body, repaint) {
   const pending = it.status === 'analyzing';
   const failed = it.status === 'failed' || (!it.core && !pending);
   const section = (title, ...kids) => h('section', { class: 'idea-sec' }, h('h2', { text: title }), ...kids);
+  const copy = async (hex) => { try { await navigator.clipboard.writeText(hex); toast(`已复制 ${hex}`); } catch { toast(hex); } };
 
+  // Spec sheet, after the specimen cards you liked: year and number, big title, then a table and meters.
+  const specRows = [
+    ['风格', [core.name, core.nameZh].filter(Boolean).join(' / ')],
+    ['分类', labelOf(it.category)],
+    ['类型', it.labels?.type],
+    ['文化', it.labels?.culture],
+    ['构图', core.composition],
+    ['色彩', core.color],
+    ['材质', core.material],
+  ].filter(x => x[1]);
+  const spec = specRows.length > 0 && h('dl', { class: 'spec' }, specRows.map(([k, v]) => h('div', {}, h('dt', { text: k }), h('dd', { text: v }))));
+  const meters = it.scores && h('div', { class: 'meters', 'aria-label': '风格刻度' }, AXES.map(([key, l, r]) => {
+    const v = Math.max(0, Math.min(1, Number(it.scores[key]) || 0));
+    return h('div', { class: 'meter' }, h('span', { text: l }),
+      h('span', { class: 'meter-track', role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(v * 100)), 'aria-label': `${l}到${r}` },
+        h('i', { style: `left:${(v * 100).toFixed(1)}%` })),
+      h('span', { text: r }));
+  }));
   const swatches = (it.palette || []).length > 0 && h('div', { class: 'swatches', 'aria-label': '色板' },
-    it.palette.map(hex => h('button', {
-      type: 'button', class: 'swatch', style: `--s:${hex}`, title: `复制 ${hex}`,
-      onclick: async () => { try { await navigator.clipboard.writeText(hex); toast(`已复制 ${hex}`); } catch { toast(hex); } },
-    }, h('i'), h('span', { text: hex }))));
+    it.palette.map(hex => h('button', { type: 'button', class: 'swatch', style: `--s:${hex}`, title: `复制 ${hex}`, onclick: () => copy(hex) },
+      h('i'), h('span', { text: hex }))));
 
-  const style = core.name && section('风格分析',
-    h('div', { class: 'core-name' }, h('b', { text: core.name }), core.nameZh && h('span', { text: core.nameZh })),
-    core.summary && h('p', { class: 'idea-text', text: core.summary }),
-    h('dl', { class: 'traits' },
-      [['构图', core.composition], ['色彩', core.color], ['材质', core.material]].filter(x => x[1])
-        .map(([k, v]) => h('div', {}, h('dt', { text: k }), h('dd', { text: v })))));
+  // Three rows of similar pictures: your own board first, then museum open-access collections.
+  const rows = it.rows || (it.inspo ? { style: it.inspo } : null);
+  const rails = [
+    rail('同一风格', core.name, [...ownSimilar(it, 'style'), ...(rows?.style || [])]),
+    rail('相同文化元素', it.labels?.culture, [...ownSimilar(it, 'culture'), ...(rows?.culture || [])]),
+    rail('相同类型', it.labels?.type, [...ownSimilar(it, 'type'), ...(rows?.type || [])]),
+  ].filter(Boolean);
 
   const culture = (cul.summary || (cul.works || []).length) && section('文化背景',
     cul.summary && h('p', { class: 'idea-text', text: cul.summary }),
@@ -198,13 +317,6 @@ function ideaBody(it, body, repaint) {
       h('summary', { text: `来源（${cul.sources.length}）` }),
       h('ol', {}, cul.sources.map(s => h('li', {}, h('a', { href: s.url, target: '_blank', rel: 'noopener', text: s.title || s.url }))))),
     cul.searchHtml && searchChips(cul.searchHtml));
-
-  const inspo = (it.inspo || []).length > 0 && section('相似灵感',
-    h('div', { class: 'inspo' }, it.inspo.map(x => h('a', { class: 'inspo-item', href: x.link, target: '_blank', rel: 'noopener' },
-      h('img', { src: x.img, alt: x.title || '', loading: 'lazy' }),
-      h('b', { text: x.title || '' }),
-      h('small', { text: [x.creator, x.date, x.source].filter(Boolean).join(' · ') })))),
-    h('p', { class: 'fine', text: '图片来自博物馆开放馆藏，点开可看出处。' }));
 
   const pinterest = it.pinterestQuery && h('a', {
     class: 'pill-btn solid wide', target: '_blank', rel: 'noopener',
@@ -222,14 +334,21 @@ function ideaBody(it, body, repaint) {
     h('button', { class: 'pill-btn ghost', type: 'button', onclick: () => removeIdea(it) }, icon('trash'), '删除'));
 
   return [
-    h('a', { class: 'entry-when', href: `#/c/${it.category || ''}`, text: labelOf(it.category) || '未分类' }),
-    h('h1', { class: 'entry-title', text: it.title || '未命名' }),
+    h('div', { class: 'spec-top' },
+      h('span', { text: (it.createdAt || '').slice(0, 4) }),
+      h('a', { class: 'spec-cat', href: `#/c/${it.category || ''}` }, h('i'), labelOf(it.category) || '未分类'),
+      h('span', { text: `No.${numberOf(it)}` })),
+    h('h1', { class: 'entry-title spec-title', text: it.title || '未命名' }),
+    core.name && h('a', { class: 'spec-core', href: `#/core/${encodeURIComponent(core.name)}` }, core.name.toUpperCase()),
     pending && h('p', { class: 'status-note' }, icon('sparkle'), 'AI 正在分析这张图，完成后会自动显示。'),
     failed && !pending && h('p', { class: 'status-note' }, icon('alert'), owner ? '还没有分析结果，点下面的「重新分析」。' : '还没有分析结果。'),
-    swatches,
+    spec, meters, swatches,
+    core.summary && h('p', { class: 'idea-text', text: core.summary }),
     it.note && h('p', { class: 'idea-note', text: it.note }),
     (it.tags || []).length > 0 && h('div', { class: 'tags' }, it.tags.map(t => h('a', { class: 'tag', href: `#/tag/${encodeURIComponent(t)}`, text: `#${t}` }))),
-    style, culture, inspo, pinterest, actions,
+    ...rails,
+    rails.length > 0 && h('p', { class: 'fine', text: '标「我的」的来自你的灵感墙，其余来自博物馆开放馆藏，点开可看出处。' }),
+    culture, pinterest, actions,
     h('p', { class: 'fine', text: `上传于 ${fmtDay(it.createdAt)}${it.analyzedAt ? ' · AI 分析，内容仅供参考' : ''}` }),
   ].filter(Boolean);
 }
@@ -520,7 +639,7 @@ async function processFile(file) {
 }
 function refreshIfBoard() {
   const { name } = parseRoute();
-  if (['', 'c', 'tag'].includes(name)) route();
+  if (['', 'c', 'tag', 'grid', 'index', 'core'].includes(name)) route();
 }
 
 // ---------- AI ----------
@@ -545,8 +664,15 @@ async function models() {
           color: Schema.string(),
           material: Schema.string(),
           pinterestQuery: Schema.string(),
-          museumQuery: Schema.string(),
+          styleQuery: Schema.string(),
+          cultureQuery: Schema.string(),
+          typeQuery: Schema.string(),
+          cultureName: Schema.string(),
+          typeName: Schema.string(),
           researchTopic: Schema.string(),
+          scores: Schema.object({ properties: {
+            ornate: Schema.number(), warm: Schema.number(), hard: Schema.number(), futuristic: Schema.number(), digital: Schema.number(),
+          } }),
         },
       }),
     },
@@ -572,7 +698,14 @@ const ANALYSIS_PROMPT = [
   '- coreSummary: 2 to 3 sentences in Simplified Chinese: why this image belongs to that aesthetic.',
   '- composition, color, material: one sentence each in Simplified Chinese, concrete and specific to this image (for non-physical work, material = texture/medium).',
   '- pinterestQuery: 2 to 5 English words that would find similar pins on Pinterest.',
-  '- museumQuery: 1 to 3 English words to find related works in an art museum collection (an art movement, technique, garment or object type).',
+  'Three searches in an art museum collection (1 to 3 English words each, words a museum catalogue would use):',
+  '- styleQuery: works sharing the same aesthetic or art movement.',
+  '- cultureQuery: works from the same cultural roots (a subculture, region, tradition, era or craft).',
+  '- typeQuery: the same kind of thing (garment, object, medium or format, e.g. coat, poster, chair, textile).',
+  '- cultureName: those cultural roots in 2 to 8 Chinese characters (e.g. 户外运动文化, 日本侘寂).',
+  '- typeName: the kind of thing in 2 to 6 Chinese characters (e.g. 外套, 海报, 界面).',
+  '- scores: five numbers from 0 to 1. ornate (0 minimal, 1 ornate), warm (0 cold, 1 warm), hard (0 soft, 1 hard),',
+  '  futuristic (0 retro, 1 futuristic), digital (0 handmade, 1 digital).',
   '- researchTopic: one English sentence describing the aesthetic/culture to research further.',
 ].join('\n');
 
@@ -595,17 +728,19 @@ async function analyze(it, src, onStep = () => {}) {
       tags: [...new Set([...(it.tags || []), ...(a.tags || []).map(t => String(t).trim().toLowerCase()).filter(Boolean)])].slice(0, 10),
       core: { name: a.coreName || '', nameZh: a.coreNameZh || '', summary: a.coreSummary || '', composition: a.composition || '', color: a.color || '', material: a.material || '' },
       pinterestQuery: (a.pinterestQuery || '').trim(),
+      labels: { culture: (a.cultureName || '').trim(), type: (a.typeName || '').trim() },
+      scores: a.scores || null,
     };
     Object.assign(it, update);
     await updateDoc(doc(db, 'ideas', it.id), update);
     repaintIfOpen(it);
 
     onStep('正在联网查文化背景…');
-    const [culture, inspo] = await Promise.all([
+    const [culture, rows] = await Promise.all([
       research(searchModel, a).catch(err => { console.warn('research failed', err); return null; }),
-      findInspo(a.museumQuery || a.coreName || '', category).catch(() => []),
+      findRows(a, category).catch(() => ({ style: [], culture: [], type: [] })),
     ]);
-    const done = { culture: culture || null, inspo, status: 'done', analyzedAt: new Date().toISOString() };
+    const done = { culture: culture || null, rows, inspo: null, status: 'done', analyzedAt: new Date().toISOString() };
     Object.assign(it, done);
     await updateDoc(doc(db, 'ideas', it.id), done);
   } catch (err) {
@@ -644,34 +779,38 @@ async function research(searchModel, a) {
   };
 }
 
-// Two related pictures from museum open-access collections (free, no key, allowed to show).
-async function findInspo(q, category) {
-  if (!q) return [];
-  const [met, aic] = await Promise.all([
-    searchMet(q, category).catch(() => []),
-    searchArtic(q).catch(() => []),
+// Three rows of related pictures from museum open-access collections (free, no key, allowed to show).
+// A picture appears in only one row.
+async function findRows(a, category) {
+  const [style, culture, type] = await Promise.all([
+    findMuseum(a.styleQuery || a.coreName, category),
+    findMuseum(a.cultureQuery, category),
+    findMuseum(a.typeQuery, category),
   ]);
+  const seen = new Set();
+  const uniq = (list) => list.filter(x => !seen.has(x.link) && seen.add(x.link)).slice(0, 6);
+  return { style: uniq(style), culture: uniq(culture), type: uniq(type) };
+}
+async function findMuseum(q, category) {
+  if (!q) return [];
+  const [met, aic] = await Promise.all([searchMet(q, category).catch(() => []), searchArtic(q).catch(() => [])]);
+  const first = category === 'Fashion' ? met : aic, second = category === 'Fashion' ? aic : met;
   const out = [];
-  for (let i = 0; out.length < 2 && i < 4; i++) for (const list of category === 'Fashion' ? [met, aic] : [aic, met]) if (list[i] && out.length < 2) out.push(list[i]);
-  return out;
+  for (let i = 0; i < 8; i++) { if (first[i]) out.push(first[i]); if (second[i]) out.push(second[i]); }
+  return out.slice(0, 8);
 }
 async function searchMet(q, category) {
   const dept = category === 'Fashion' ? '&departmentId=8' : ''; // 8 = The Costume Institute
   const r = await withTimeout(fetch(`https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true${dept}&q=${encodeURIComponent(q)}`), 10000, 'Met');
-  const ids = ((await r.json()).objectIDs || []).slice(0, 8);
-  const out = [];
-  for (const id of ids) {
-    if (out.length >= 2) break;
-    try {
-      const o = await (await withTimeout(fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`), 8000, 'Met')).json();
-      if (o.primaryImageSmall && o.isPublicDomain) out.push({ title: o.title, creator: o.artistDisplayName || o.culture || '', date: o.objectDate || '', img: o.primaryImageSmall, link: o.objectURL, source: '大都会博物馆' });
-    } catch {}
-  }
-  return out;
+  const ids = ((await r.json()).objectIDs || []).slice(0, 10);
+  const objs = await Promise.all(ids.map(id => withTimeout(fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`), 8000, 'Met')
+    .then(x => x.json()).catch(() => null)));
+  return objs.filter(o => o?.primaryImageSmall && o.isPublicDomain).slice(0, 5)
+    .map(o => ({ title: o.title, creator: o.artistDisplayName || o.culture || '', date: o.objectDate || '', img: o.primaryImageSmall, link: o.objectURL, source: '大都会博物馆' }));
 }
 async function searchArtic(q) {
-  const r = await withTimeout(fetch(`https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(q)}&limit=10&fields=id,title,artist_title,date_display,image_id,is_public_domain`), 10000, 'AIC');
-  return ((await r.json()).data || []).filter(x => x.image_id && x.is_public_domain).slice(0, 2).map(x => ({
+  const r = await withTimeout(fetch(`https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(q)}&limit=12&fields=id,title,artist_title,date_display,image_id,is_public_domain`), 10000, 'AIC');
+  return ((await r.json()).data || []).filter(x => x.image_id && x.is_public_domain).slice(0, 5).map(x => ({
     title: x.title, creator: x.artist_title || '', date: x.date_display || '',
     img: `https://www.artic.edu/iiif/2/${x.image_id}/full/600,/0/default.jpg`,
     link: `https://www.artic.edu/artworks/${x.id}`, source: '芝加哥艺术博物馆',
