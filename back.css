@@ -1,0 +1,14 @@
+/* Hand-drawn "back to home" arrow, top-left on every inner page. Matches the hand-lettered logo. */
+.back-arrow {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; color: #fff; text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.back-arrow svg { width: 34px; height: 26px; overflow: visible; transition: transform .2s ease; }
+.back-arrow path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.back-arrow:hover svg, .back-arrow:focus-visible svg { transform: translateX(-4px); }
+/* In the old pages the arrow sits inside the centred header, pinned to the left */
+header .back-arrow.pinned { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); }
+/* Pages whose header scrolls away keep a fixed arrow */
+.back-arrow.fixed { position: fixed; left: 14px; top: 18px; z-index: 50; }
+@media (prefers-reduced-motion: reduce) { .back-arrow svg { transition: none; } }

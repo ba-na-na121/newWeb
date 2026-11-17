@@ -18,9 +18,21 @@ let introStart = 0;
 // Fewer particles on phones so the animation stays smooth.
 const PARTICLE_COUNT = Math.min(window.innerWidth, window.innerHeight) < 600 ? 400 : 800;
 
+// Big screens get a sharper texture (3072 px wide); phones keep the lighter one.
+const HD = Math.min(window.innerWidth, window.innerHeight) * (window.devicePixelRatio || 1) >= 900 && window.innerWidth >= 900;
+
 function preload() {
-  earthTexture = loadImage('earth_lines_neon.webp');
+  earthTexture = loadImage(HD ? 'earth_lines_neon_hd.webp' : 'earth_lines_neon.webp');
 }
+
+// Size of the earth: on phones (portrait) 32% of the width, as before; on wide screens 27% of the height,
+// so it fills a desktop screen the way it fills a phone. Particles spread out in proportion.
+const earthRadius = () => {
+  const m = Math.min(width, height);
+  const before = Math.min(180, m * 0.32);            // the old size (phones stay exactly the same)
+  return width > height ? Math.max(before, height * 0.27) : before;
+};
+const spread = () => Math.max(1, earthRadius() / 180);
 
 function setup() {
   const canvas = createCanvas(windowWidth, windowHeight, WEBGL);
@@ -69,12 +81,14 @@ function drawEarth() {
   directionalLight(0, 255, 255, 0, 0, -1);
   fill(200, 30, 90);
   if (earthTexture) texture(earthTexture);
-  sphere(Math.min(180, Math.min(width, height) * 0.32));
+  sphere(earthRadius(), 72, 48); // more segments so the outline stays round when large
   pop();
 }
 
 function drawParticles() {
+  const k = spread();
   for (const p of particles) {
+    p.k = k;
     p.update();
     p.show();
   }
@@ -114,13 +128,14 @@ class Particle {
   }
   show() {
     push();
+    const r = this.r * (this.k || 1);
     translate(
-      this.r * sin(this.theta) * cos(this.phi),
-      this.r * sin(this.theta) * sin(this.phi),
-      this.r * cos(this.theta)
+      r * sin(this.theta) * cos(this.phi),
+      r * sin(this.theta) * sin(this.phi),
+      r * cos(this.theta)
     );
     fill(this.hue, 80, 100);
-    sphere(1.5);
+    sphere(1.5 * Math.sqrt(this.k || 1), 10, 8);
     pop();
   }
 }
