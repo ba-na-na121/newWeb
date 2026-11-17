@@ -1,70 +1,201 @@
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Contact Info - Wenzuo Xia</title>
-  <style>
-    @font-face {
-      font-family: 'HeaderFont';
-      src: url('./fonts/headerFonts.otf') format('opentype');
-    }
-    body, html {
-      margin: 0;
-      padding: 0;
-      background: black;
-      color: white;
-      font-family: 'Courier New', Courier, monospace;
-      text-align: center;
-    }
-    header {
-      font-family: 'HeaderFont', sans-serif;
-      font-size: 40px;
-      margin-top: 20px;
-    }
-    h2 {
-      font-size: 24px;
-      margin-top: 40px;
-    }
-    img {
-      margin-top: 20px;
-      width: 300px;
-      height: auto;
-      border-radius: 12px;
-    }
-    .bio {
-      max-width: 600px;
-      margin: 30px auto;
-      font-size: 18px;
-      line-height: 1.6;
-    }
-    .contact {
-      margin-top: 40px;
-      font-size: 16px;
-      color: #cccccc;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Wenzuo Xia — Creative Technologist in New York. Apps and interfaces, games, and creative work shaped by youth culture." />
+  <title>About · Wenzuo Xia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
   <link rel="stylesheet" href="back.css">
+  <style>
+    @font-face { font-family: 'HeaderFont'; src: url('./fonts/headerFonts.otf') format('opentype'); font-display: swap; }
+    :root {
+      --paper: #F2EFE8; --ink: #111; --muted: #6b675f; --line: rgba(0,0,0,.16);
+      --accent: #FF3B6B;
+      --font: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+      --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, 'Courier New', monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #000; color: #fff; font-family: var(--font); -webkit-text-size-adjust: 100%; }
+    header { position: relative; text-align: center; padding: 22px 64px 18px; font-family: 'HeaderFont', sans-serif; font-size: 40px; }
+    header a.logo { color: #fff; text-decoration: none; }
+    main { padding: 8px 16px 64px; }
+
+    /* ---------- The card ---------- */
+    .card {
+      max-width: 860px; margin: 0 auto; background: var(--paper); color: var(--ink);
+      border-radius: 22px; overflow: hidden; box-shadow: 0 30px 80px rgba(255,255,255,.04);
+    }
+    .card-top { display: flex; justify-content: space-between; gap: 12px; padding: 18px 22px 0; font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: .06em; }
+    .hero { display: grid; grid-template-columns: 1fr; gap: 0; }
+    .photo { margin: 14px 14px 0; border-radius: 16px; overflow: hidden; aspect-ratio: 4 / 5;
+      background: linear-gradient(160deg, #ff7aa2 0%, #ffb36b 55%, #ffe08a 100%); position: relative; }
+    .photo img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
+    .photo .coord { position: absolute; right: 12px; bottom: 10px; font-family: var(--mono); font-size: 11px; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.4); }
+    .intro { padding: 18px 22px 6px; }
+    h1 { margin: 0; font-size: clamp(46px, 13vw, 92px); line-height: .9; font-weight: 800; font-stretch: 70%; letter-spacing: -0.01em; text-transform: uppercase; }
+    .role { display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .1em; border-bottom: 2px solid var(--accent); }
+    .lede { font-size: clamp(19px, 4.6vw, 24px); line-height: 1.35; font-weight: 600; margin: 16px 0 0; max-width: 30em; }
+    @media (min-width: 760px) {
+      .hero { grid-template-columns: 300px 1fr; align-items: end; }
+      .photo { aspect-ratio: 3 / 4; margin: 14px 0 0 14px; }
+      .intro { padding: 0 26px 6px; }
+    }
+
+    /* spec table */
+    .spec { margin: 22px 22px 0; border-top: 1.5px solid var(--ink); font-size: 14px; }
+    .spec div { display: grid; grid-template-columns: 112px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px dotted rgba(0,0,0,.35); }
+    .spec dt { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding-top: 2px; }
+    .spec dd { margin: 0; line-height: 1.5; }
+
+    section { padding: 26px 22px 0; }
+    section h2 { margin: 0 0 12px; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+    section h2::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+    .do { display: grid; gap: 10px; }
+    @media (min-width: 640px) { .do { grid-template-columns: repeat(3, 1fr); } }
+    .do article { background: #fff; border-radius: 14px; padding: 16px 16px 14px; box-shadow: inset 0 0 0 1px var(--line); }
+    .do .n { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); }
+    .do h3 { margin: 6px 0 6px; font-size: 19px; font-weight: 800; font-stretch: 85%; }
+    .do p { margin: 0; font-size: 14.5px; line-height: 1.55; }
+    .do article.lead { grid-column: 1 / -1; background: var(--ink); color: var(--paper); box-shadow: none; }
+    .do article.lead .n { color: #b5b0a6; }
+
+    .list { list-style: none; margin: 0; padding: 0; }
+    .list li { display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .list b { font-size: 15.5px; }
+    .list .when { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .list p { grid-column: 1 / -1; margin: 0; font-size: 14px; line-height: 1.55; color: #333; }
+    .list a { color: inherit; }
+    .tag { display: inline-block; margin-left: 6px; font-family: var(--mono); font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--accent); color: #fff; vertical-align: 2px; }
+
+    .open { font-size: 16px; line-height: 1.6; margin: 0; }
+
+    .contact { display: flex; flex-wrap: wrap; gap: 8px; padding: 26px 22px 24px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 999px;
+      font: 700 15px var(--font); text-decoration: none; color: var(--ink); background: #fff; box-shadow: inset 0 0 0 1.5px var(--ink); cursor: pointer; border: 0; }
+    .btn.primary { background: var(--ink); color: var(--paper); box-shadow: none; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .contact { padding-bottom: 10px; }
+    .cv-note { margin: 0; padding: 0 22px 22px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .card-foot { display: flex; justify-content: space-between; padding: 12px 22px 18px; font-family: var(--mono); font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); }
+    .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #111; color: #fff; padding: 10px 16px; border-radius: 999px; font: 600 14px var(--font); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+    @media (prefers-reduced-motion: reduce) { .btn:hover { transform: none; } }
+  </style>
 </head>
 <body>
-  <a class="back-arrow fixed" href="index.html" aria-label="Back to home"><svg viewBox="0 0 34 26" aria-hidden="true"><path d="M31 13.4c-4.4-.6-9.6.5-15.1.1-3.5-.3-6.7-.5-9.8-.1"/><path d="M12.6 5.1C9.9 7.6 7.4 10.1 4.6 13c2.9 2.5 5.7 5 8.3 7.8"/></svg></a>
-  <header><a href="index.html" style="color: white; text-decoration: none;">Wenzuo Xia</a></header>
-  <h2>About Me</h2>
-  <img src="ArtWorks照片/selfie.webp" alt="Wenzuo Xia Photo">
-  <div class="bio">
-   <p>Hi! My name is Wenzuo, and I’m an international student at Parsons School of Design, majoring in Design & Technology with a focus on game design. I rarely take selfies—so shoutout to my girlfriend Yiki for taking these photos.</p> 
+  <header>
+    <a class="back-arrow pinned" href="index.html" aria-label="Back to home"><svg viewBox="0 0 34 26" aria-hidden="true"><path d="M31 13.4c-4.4-.6-9.6.5-15.1.1-3.5-.3-6.7-.5-9.8-.1"/><path d="M12.6 5.1C9.9 7.6 7.4 10.1 4.6 13c2.9 2.5 5.7 5 8.3 7.8"/></svg></a>
+    <a class="logo" href="index.html">Wenzuo Xia</a>
+  </header>
 
-<p>I’m really into hip-hop and youth culture. I always have music on while I work—especially rap and R&B. My favorite rapper is Lil Yachty. I’m also deeply into fashion: I constantly keep up with the latest trends, follow the industry closely, and love collecting clothes from everywhere. I’m drawn to newness and unconventional styles.</p>
+  <main>
+    <article class="card">
+      <div class="card-top"><span>2026</span><span>NEW YORK</span><span>No.001</span></div>
 
+      <div class="hero">
+        <div class="photo">
+          <img src="ArtWorks照片/selfie.webp" alt="Portrait of Wenzuo Xia">
+          <span class="coord">40.73°N 73.99°W</span>
+        </div>
+        <div class="intro">
+          <h1>Wenzuo<br>Xia</h1>
+          <span class="role">CREATIVE TECHNOLOGIST</span>
+          <p class="lede">I turn ideas into things people can use, play and wear: apps and interfaces, games, and creative work shaped by youth culture and the underground.</p>
+        </div>
+      </div>
 
-  </div>
-  <div class="contact">
-    Contact: wenzuo20@gmail.com<br />
-    Instagram: <a href="https://instagram.com/xia.wenz" target="_blank" style="color: #cccccc;">@xia.wenz</a><br />
-    GitHub: <a href="https://github.com/ba-na-na121" target="_blank" style="color: #cccccc;">@ba-na-na121</a>
-    <br />Itch.io: <a href="https://liamxia.itch.io" target="_blank" style="color: #cccccc;">Wenzuo Xia</a>
-  </div>
+      <dl class="spec">
+        <div><dt>Based in</dt><dd>New York City</dd></div>
+        <div><dt>Building</dt><dd>GigRadar — a context-aware live music platform (undergraduate thesis)</dd></div>
+        <div><dt>Studying</dt><dd>BFA Design &amp; Technology, Parsons School of Design · 2027 · Dean’s List</dd></div>
+        <div><dt>Tools</dt><dd>Figma · Unity · p5.js · Expo · Blender · Adobe Creative Suite · AI tools</dd></div>
+        <div><dt>Languages</dt><dd>Chinese (native) · English · Japanese (basic)</dd></div>
+      </dl>
+
+      <section aria-labelledby="do-h">
+        <h2 id="do-h">What I do</h2>
+        <div class="do">
+          <article class="lead">
+            <span class="n">01 — FOCUS</span>
+            <h3>Product &amp; interface</h3>
+            <p>Apps and web products built for real users and real markets, from research and UX to working code. I’m currently developing my own app products with commercial use in mind.</p>
+          </article>
+          <article>
+            <span class="n">02</span>
+            <h3>Games</h3>
+            <p>Game design student at Parsons with 20+ small games released, from narrative mysteries to local multiplayer.</p>
+          </article>
+          <article>
+            <span class="n">03</span>
+            <h3>Culture &amp; branding</h3>
+            <p>Creative projects around youth culture, music and brands — visuals, campaigns and interactive pieces I make because I love them.</p>
+          </article>
+          <article>
+            <span class="n">04</span>
+            <h3>Styling</h3>
+            <p>Styling connected to New York’s underground music and fashion scene.</p>
+          </article>
+        </div>
+      </section>
+
+      <section aria-labelledby="exp-h">
+        <h2 id="exp-h">Experience</h2>
+        <ul class="list">
+          <li><b>UI/UX Design Intern — Nanjing TRS Intelligent System</b><span class="when">2025</span>
+            <p>Improved the UI/UX of an educational app and completed the competitive, market and user research that shaped its marketing campaign and campus roadshows.</p></li>
+          <li><b>Intern — Shanghai SHU XIN Information Technology</b><span class="when">2025</span>
+            <p>Designed an AI agent–assisted management system for the leadership team, from interviews and user flows to the interface, refined through user testing.</p></li>
+          <li><b>Team Lead — Liminal Archive</b><span class="when">2026</span>
+            <p>Led a team of developers and designers on an AI-powered archive that turns spatial memories into living 3D spaces (3D scanning + Gaussian splatting), for Tsinghua University’s Design Futures Shared Vision program.</p></li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="work-h">
+        <h2 id="work-h">Selected work</h2>
+        <ul class="list">
+          <li><b>GigRadar <span class="tag">IN PROGRESS</span></b><span class="when">2026</span>
+            <p>Turning spontaneous impulses into live music experiences — field research with young people across the US, audience- and service-side prototypes, and the app itself.</p></li>
+          <li><b><a href="https://liamxia.itch.io/under-the-snowman" target="_blank" rel="noopener">Under the Snowman ↗</a></b><span class="when">2026</span>
+            <p>Team lead and game designer. A 2D crime mystery about memory and guilt, made for the Parsons DT Global Game Jam.</p></li>
+          <li><b><a href="games.html">20+ games →</a></b><span class="when">2024–</span>
+            <p>Small games across genres, built with the Parsons Game Jam team.</p></li>
+          <li><b><a href="artworks.html">Artworks →</a></b><span class="when">2023–</span>
+            <p>Fashion, visuals and objects.</p></li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="open-h">
+        <h2 id="open-h">Open to</h2>
+        <p class="open">Product, UI/UX and creative technology roles · collaborations with brands and artists.</p>
+      </section>
+
+      <div class="contact">
+        <a class="btn primary" href="mailto:wenzuo20@gmail.com" id="mail"><svg viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>wenzuo20@gmail.com</a>
+        <a class="btn" href="https://www.instagram.com/xia.wenz" target="_blank" rel="noopener">Instagram</a>
+        <a class="btn" href="https://github.com/ba-na-na121" target="_blank" rel="noopener">GitHub</a>
+        <a class="btn" href="https://liamxia.itch.io" target="_blank" rel="noopener">itch.io</a>
+      </div>
+
+      <p class="cv-note">Full CV available on request.</p>
+
+      <div class="card-foot"><span>WENZUO XIA</span><span>CREATIVE TECHNOLOGIST</span></div>
+    </article>
+  </main>
+
+  <script>
+    // Clicking the email copies it too, so people without a mail app still get it.
+    document.getElementById('mail').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText('wenzuo20@gmail.com');
+        const t = document.createElement('div');
+        t.className = 'toast'; t.textContent = 'Email copied';
+        document.body.append(t); setTimeout(() => t.remove(), 1800);
+      } catch {}
+    });
+  </script>
 </body>
 </html>
