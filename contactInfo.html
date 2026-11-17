@@ -2,200 +2,405 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="description" content="Wenzuo Xia — Creative Technologist in New York. Apps and interfaces, games, and creative work shaped by youth culture." />
-  <title>About · Wenzuo Xia</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
-  <link rel="stylesheet" href="back.css">
+  <title>Contact Info · Wenzuo Xia</title>
   <style>
-    @font-face { font-family: 'HeaderFont'; src: url('./fonts/headerFonts.otf') format('opentype'); font-display: swap; }
-    :root {
-      --paper: #F2EFE8; --ink: #111; --muted: #6b675f; --line: rgba(0,0,0,.16);
-      --accent: #FF3B6B;
-      --font: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
-      --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, 'Courier New', monospace;
+    @font-face {
+      font-family: 'HeaderFont';
+      src: url('./fonts/headerFonts.otf') format('opentype');
     }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; background: #000; color: #fff; font-family: var(--font); -webkit-text-size-adjust: 100%; }
-    header { position: relative; text-align: center; padding: 22px 64px 18px; font-family: 'HeaderFont', sans-serif; font-size: 40px; }
-    header a.logo { color: #fff; text-decoration: none; }
-    main { padding: 8px 16px 64px; }
-
-    /* ---------- The card ---------- */
-    .card {
-      max-width: 860px; margin: 0 auto; background: var(--paper); color: var(--ink);
-      border-radius: 22px; overflow: hidden; box-shadow: 0 30px 80px rgba(255,255,255,.04);
+    body, html {
+      margin: 0;
+      padding: 0;
+      background: black;
+      color: white;
+      font-family: 'Courier New', Courier, monospace;
+      width: 100%;
+      height: 100%;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
-    .card-top { display: flex; justify-content: space-between; gap: 12px; padding: 18px 22px 0; font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: .06em; }
-    .hero { display: grid; grid-template-columns: 1fr; gap: 0; }
-    .photo { margin: 14px 14px 0; border-radius: 16px; overflow: hidden; aspect-ratio: 4 / 5;
-      background: linear-gradient(160deg, #ff7aa2 0%, #ffb36b 55%, #ffe08a 100%); position: relative; }
-    .photo img { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
-    .photo .coord { position: absolute; right: 12px; bottom: 10px; font-family: var(--mono); font-size: 11px; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.4); }
-    .intro { padding: 18px 22px 6px; }
-    h1 { margin: 0; font-size: clamp(46px, 13vw, 92px); line-height: .9; font-weight: 800; font-stretch: 70%; letter-spacing: -0.01em; text-transform: uppercase; }
-    .role { display: inline-block; margin-top: 10px; font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .1em; border-bottom: 2px solid var(--accent); }
-    .lede { font-size: clamp(19px, 4.6vw, 24px); line-height: 1.35; font-weight: 600; margin: 16px 0 0; max-width: 30em; }
-    @media (min-width: 760px) {
-      .hero { grid-template-columns: 300px 1fr; align-items: end; }
-      .photo { aspect-ratio: 3 / 4; margin: 14px 0 0 14px; }
-      .intro { padding: 0 26px 6px; }
+    html {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      overflow-y: scroll;
+      height: 100vh;
+    }
+    header {
+      position: fixed;
+      background: black;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 20px;
+      text-align: center;
+      font-size: 35px;
+      z-index: 2;
+      font-family: 'HeaderFont', sans-serif;
+      transition: top 0.3s ease;
+    }
+    header a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+      font-family: 'HeaderFont', sans-serif;
+    }
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 0;
+      pointer-events: none;
     }
 
-    /* spec table */
-    .spec { margin: 22px 22px 0; border-top: 1.5px solid var(--ink); font-size: 14px; }
-    .spec div { display: grid; grid-template-columns: 112px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px dotted rgba(0,0,0,.35); }
-    .spec dt { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding-top: 2px; }
-    .spec dd { margin: 0; line-height: 1.5; }
+    /* Section links, like the Artworks page */
+    nav#art-nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 14px 30px;
+      margin: 26px auto 0;
+      max-width: 1000px;
+      font-size: 16px;
+    }
+    nav#art-nav a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    nav#art-nav a:hover, .artwork a:hover {
+      color: #ff5555;
+      text-shadow: 0 0 10px #ff5555;
+    }
 
-    section { padding: 26px 22px 0; }
-    section h2 { margin: 0 0 12px; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 10px; }
-    section h2::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+    .artwork {
+      min-height: 100vh;
+      padding: 110px 20px 60px;
+      box-sizing: border-box;
+      text-align: center;
+      scroll-snap-align: start;
+      position: relative;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1;
+    }
+    .artwork h2 {
+      text-transform: uppercase;
+      font-size: 24px;
+      margin: 0 0 24px;
+    }
+    .artwork p {
+      max-width: 720px;
+      margin: 0 0 18px;
+      font-size: 17px;
+      line-height: 1.65;
+    }
+    .artwork a { color: white; }
 
-    .do { display: grid; gap: 10px; }
-    @media (min-width: 640px) { .do { grid-template-columns: repeat(3, 1fr); } }
-    .do article { background: #fff; border-radius: 14px; padding: 16px 16px 14px; box-shadow: inset 0 0 0 1px var(--line); }
-    .do .n { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); }
-    .do h3 { margin: 6px 0 6px; font-size: 19px; font-weight: 800; font-stretch: 85%; }
-    .do p { margin: 0; font-size: 14.5px; line-height: 1.55; }
-    .do article.lead { grid-column: 1 / -1; background: var(--ink); color: var(--paper); box-shadow: none; }
-    .do article.lead .n { color: #b5b0a6; }
+    /* Intro */
+    .portrait {
+      width: 240px;
+      max-width: 62vw;
+      height: auto;
+      border-radius: 12px;
+      margin: 0 0 22px;
+    }
+    .lede {
+      font-size: 19px !important;
+      font-weight: bold;
+    }
+    .facts {
+      list-style: none;
+      padding: 0;
+      margin: 4px 0 0;
+      font-size: 15px;
+      line-height: 1.9;
+      color: #ccc;
+    }
+    .facts b { color: white; }
 
-    .list { list-style: none; margin: 0; padding: 0; }
-    .list li { display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-    .list b { font-size: 15.5px; }
-    .list .when { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
-    .list p { grid-column: 1 / -1; margin: 0; font-size: 14px; line-height: 1.55; color: #333; }
-    .list a { color: inherit; }
-    .tag { display: inline-block; margin-left: 6px; font-family: var(--mono); font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--accent); color: #fff; vertical-align: 2px; }
+    /* Lists (what I do, experience, work) */
+    .items {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-width: 720px;
+    }
+    .items li { margin: 0 0 26px; }
+    .items h3 {
+      font-size: 18px;
+      margin: 0 0 6px;
+      text-transform: uppercase;
+    }
+    .items .when {
+      display: block;
+      font-size: 13px;
+      font-style: italic;
+      color: #aaa;
+      margin-bottom: 6px;
+    }
+    .items p { margin: 0 auto; font-size: 15.5px; color: #ddd; }
 
-    .open { font-size: 16px; line-height: 1.6; margin: 0; }
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px 28px;
+      font-size: 17px;
+      font-weight: bold;
+      margin: 10px 0 18px;
+    }
+    .links a { text-decoration: none; }
+    .small { font-size: 14px !important; font-style: italic; color: #aaa; }
 
-    .contact { display: flex; flex-wrap: wrap; gap: 8px; padding: 26px 22px 24px; }
-    .btn { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 999px;
-      font: 700 15px var(--font); text-decoration: none; color: var(--ink); background: #fff; box-shadow: inset 0 0 0 1.5px var(--ink); cursor: pointer; border: 0; }
-    .btn.primary { background: var(--ink); color: var(--paper); box-shadow: none; }
-    .btn:hover { transform: translateY(-1px); }
-    .btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .contact { padding-bottom: 10px; }
-    .cv-note { margin: 0; padding: 0 22px 22px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
-    .card-foot { display: flex; justify-content: space-between; padding: 12px 22px 18px; font-family: var(--mono); font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); }
-    .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #111; color: #fff; padding: 10px 16px; border-radius: 999px; font: 600 14px var(--font); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
-    @media (prefers-reduced-motion: reduce) { .btn:hover { transform: none; } }
+    #scroll-buttons {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 5;
+    }
+    #scroll-buttons button {
+      background: transparent;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      padding: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: none;
+      transition: transform 0.2s ease;
+    }
+    #scroll-buttons button:hover { transform: scale(1.5); }
+
+    body::-webkit-scrollbar { width: 6px; }
+    body::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+    body::-webkit-scrollbar-track { background: transparent; }
+    body { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); z-index: 10;
+      background: white; color: black; padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: bold;
+    }
   </style>
+  <link rel="stylesheet" href="back.css">
 </head>
 <body>
   <header>
     <a class="back-arrow pinned" href="index.html" aria-label="Back to home"><svg viewBox="0 0 34 26" aria-hidden="true"><path d="M31 13.4c-4.4-.6-9.6.5-15.1.1-3.5-.3-6.7-.5-9.8-.1"/><path d="M12.6 5.1C9.9 7.6 7.4 10.1 4.6 13c2.9 2.5 5.7 5 8.3 7.8"/></svg></a>
-    <a class="logo" href="index.html">Wenzuo Xia</a>
+    <a href="index.html">Wenzuo Xia</a>
   </header>
 
-  <main>
-    <article class="card">
-      <div class="card-top"><span>2026</span><span>NEW YORK</span><span>No.001</span></div>
+  <section class="artwork" id="about">
+    <img class="portrait" src="ArtWorks照片/selfie.webp" alt="Portrait of Wenzuo Xia">
+    <h2>"Creative Technologist"</h2>
+    <p class="lede">I turn ideas into things people can use, play and wear: apps and interfaces, games, and creative work shaped by youth culture and the underground.</p>
+    <ul class="facts">
+      <li><b>Based in</b> New York City</li>
+      <li><b>Building</b> GigRadar, a context-aware live music platform</li>
+      <li><b>Studying</b> BFA Design &amp; Technology, Parsons School of Design · 2027</li>
+    </ul>
+    <nav id="art-nav">
+      <a href="#do">"WHAT I DO"</a>
+      <a href="#experience">"EXPERIENCE"</a>
+      <a href="#work">"SELECTED WORK"</a>
+      <a href="#contact">"CONTACT"</a>
+    </nav>
+  </section>
 
-      <div class="hero">
-        <div class="photo">
-          <img src="ArtWorks照片/selfie.webp" alt="Portrait of Wenzuo Xia">
-          <span class="coord">40.73°N 73.99°W</span>
-        </div>
-        <div class="intro">
-          <h1>Wenzuo<br>Xia</h1>
-          <span class="role">CREATIVE TECHNOLOGIST</span>
-          <p class="lede">I turn ideas into things people can use, play and wear: apps and interfaces, games, and creative work shaped by youth culture and the underground.</p>
-        </div>
-      </div>
+  <section class="artwork" id="do">
+    <h2>"What I Do"</h2>
+    <ul class="items">
+      <li>
+        <h3>Product &amp; Interface</h3>
+        <p>Apps and web products built for real users and real markets, from research and UX to working code. I’m currently developing my own app products with commercial use in mind.</p>
+      </li>
+      <li>
+        <h3>Games</h3>
+        <p>Game design student at Parsons with 20+ small games released, from narrative mysteries to local multiplayer.</p>
+      </li>
+      <li>
+        <h3>Culture &amp; Branding</h3>
+        <p>Creative projects around youth culture, music and brands — visuals, campaigns and interactive pieces I make because I love them.</p>
+      </li>
+      <li>
+        <h3>Styling</h3>
+        <p>Styling connected to New York’s underground music and fashion scene.</p>
+      </li>
+    </ul>
+  </section>
 
-      <dl class="spec">
-        <div><dt>Based in</dt><dd>New York City</dd></div>
-        <div><dt>Building</dt><dd>GigRadar — a context-aware live music platform (undergraduate thesis)</dd></div>
-        <div><dt>Studying</dt><dd>BFA Design &amp; Technology, Parsons School of Design · 2027 · Dean’s List</dd></div>
-        <div><dt>Tools</dt><dd>Figma · Unity · p5.js · Expo · Blender · Adobe Creative Suite · AI tools</dd></div>
-        <div><dt>Languages</dt><dd>Chinese (native) · English · Japanese (basic)</dd></div>
-      </dl>
+  <section class="artwork" id="experience">
+    <h2>"Experience"</h2>
+    <ul class="items">
+      <li>
+        <h3>UI/UX Design Intern</h3>
+        <span class="when">Nanjing TRS Intelligent System · 2025</span>
+        <p>Improved the UI/UX of an educational app and completed the competitive, market and user research that shaped its marketing campaign and campus roadshows.</p>
+      </li>
+      <li>
+        <h3>Intern</h3>
+        <span class="when">Shanghai SHU XIN Information Technology · 2025</span>
+        <p>Designed an AI agent–assisted management system for the leadership team, from interviews and user flows to the interface, refined through user testing.</p>
+      </li>
+      <li>
+        <h3>Team Lead — Liminal Archive</h3>
+        <span class="when">Tsinghua University Design Futures Shared Vision · 2026</span>
+        <p>Led a team of developers and designers on an AI-powered archive that turns spatial memories into living 3D spaces, using 3D scanning and Gaussian splatting.</p>
+      </li>
+    </ul>
+    <p class="small">Tools — Figma · Unity · p5.js · Expo · Blender · Adobe Creative Suite · AI tools</p>
+  </section>
 
-      <section aria-labelledby="do-h">
-        <h2 id="do-h">What I do</h2>
-        <div class="do">
-          <article class="lead">
-            <span class="n">01 — FOCUS</span>
-            <h3>Product &amp; interface</h3>
-            <p>Apps and web products built for real users and real markets, from research and UX to working code. I’m currently developing my own app products with commercial use in mind.</p>
-          </article>
-          <article>
-            <span class="n">02</span>
-            <h3>Games</h3>
-            <p>Game design student at Parsons with 20+ small games released, from narrative mysteries to local multiplayer.</p>
-          </article>
-          <article>
-            <span class="n">03</span>
-            <h3>Culture &amp; branding</h3>
-            <p>Creative projects around youth culture, music and brands — visuals, campaigns and interactive pieces I make because I love them.</p>
-          </article>
-          <article>
-            <span class="n">04</span>
-            <h3>Styling</h3>
-            <p>Styling connected to New York’s underground music and fashion scene.</p>
-          </article>
-        </div>
-      </section>
+  <section class="artwork" id="work">
+    <h2>"Selected Work"</h2>
+    <ul class="items">
+      <li>
+        <h3>GigRadar</h3>
+        <span class="when">In progress · 2026</span>
+        <p>Turning spontaneous impulses into live music experiences — field research with young people across the US, audience- and service-side prototypes, and the app itself.</p>
+      </li>
+      <li>
+        <h3><a href="https://liamxia.itch.io/under-the-snowman" target="_blank" rel="noopener">Under the Snowman ↗</a></h3>
+        <span class="when">Parsons DT Global Game Jam · 2026</span>
+        <p>Team lead and game designer. A 2D crime mystery about memory and guilt.</p>
+      </li>
+      <li>
+        <h3><a href="games.html">20+ Games →</a></h3>
+        <span class="when">2024 –</span>
+        <p>Small games across genres, built with the Parsons Game Jam team.</p>
+      </li>
+      <li>
+        <h3><a href="artworks.html">Artworks →</a></h3>
+        <span class="when">2023 –</span>
+        <p>Fashion, visuals and objects.</p>
+      </li>
+    </ul>
+  </section>
 
-      <section aria-labelledby="exp-h">
-        <h2 id="exp-h">Experience</h2>
-        <ul class="list">
-          <li><b>UI/UX Design Intern — Nanjing TRS Intelligent System</b><span class="when">2025</span>
-            <p>Improved the UI/UX of an educational app and completed the competitive, market and user research that shaped its marketing campaign and campus roadshows.</p></li>
-          <li><b>Intern — Shanghai SHU XIN Information Technology</b><span class="when">2025</span>
-            <p>Designed an AI agent–assisted management system for the leadership team, from interviews and user flows to the interface, refined through user testing.</p></li>
-          <li><b>Team Lead — Liminal Archive</b><span class="when">2026</span>
-            <p>Led a team of developers and designers on an AI-powered archive that turns spatial memories into living 3D spaces (3D scanning + Gaussian splatting), for Tsinghua University’s Design Futures Shared Vision program.</p></li>
-        </ul>
-      </section>
+  <section class="artwork" id="contact">
+    <h2>"Contact"</h2>
+    <p>Open to product, UI/UX and creative technology roles, and to collaborations with brands and artists.</p>
+    <div class="links">
+      <a href="mailto:wenzuo20@gmail.com" id="mail">wenzuo20@gmail.com</a>
+      <a href="https://www.instagram.com/xia.wenz" target="_blank" rel="noopener">Instagram</a>
+      <a href="https://github.com/ba-na-na121" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://liamxia.itch.io" target="_blank" rel="noopener">itch.io</a>
+    </div>
+    <p class="small">Full CV available on request.</p>
+  </section>
 
-      <section aria-labelledby="work-h">
-        <h2 id="work-h">Selected work</h2>
-        <ul class="list">
-          <li><b>GigRadar <span class="tag">IN PROGRESS</span></b><span class="when">2026</span>
-            <p>Turning spontaneous impulses into live music experiences — field research with young people across the US, audience- and service-side prototypes, and the app itself.</p></li>
-          <li><b><a href="https://liamxia.itch.io/under-the-snowman" target="_blank" rel="noopener">Under the Snowman ↗</a></b><span class="when">2026</span>
-            <p>Team lead and game designer. A 2D crime mystery about memory and guilt, made for the Parsons DT Global Game Jam.</p></li>
-          <li><b><a href="games.html">20+ games →</a></b><span class="when">2024–</span>
-            <p>Small games across genres, built with the Parsons Game Jam team.</p></li>
-          <li><b><a href="artworks.html">Artworks →</a></b><span class="when">2023–</span>
-            <p>Fashion, visuals and objects.</p></li>
-        </ul>
-      </section>
+  <canvas id="sandCanvas"></canvas>
 
-      <section aria-labelledby="open-h">
-        <h2 id="open-h">Open to</h2>
-        <p class="open">Product, UI/UX and creative technology roles · collaborations with brands and artists.</p>
-      </section>
-
-      <div class="contact">
-        <a class="btn primary" href="mailto:wenzuo20@gmail.com" id="mail"><svg viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg>wenzuo20@gmail.com</a>
-        <a class="btn" href="https://www.instagram.com/xia.wenz" target="_blank" rel="noopener">Instagram</a>
-        <a class="btn" href="https://github.com/ba-na-na121" target="_blank" rel="noopener">GitHub</a>
-        <a class="btn" href="https://liamxia.itch.io" target="_blank" rel="noopener">itch.io</a>
-      </div>
-
-      <p class="cv-note">Full CV available on request.</p>
-
-      <div class="card-foot"><span>WENZUO XIA</span><span>CREATIVE TECHNOLOGIST</span></div>
-    </article>
-  </main>
+  <div id="scroll-buttons">
+    <button id="scroll-up" aria-label="Previous section">↑</button>
+    <button id="scroll-down" aria-label="Next section">↓</button>
+  </div>
 
   <script>
-    // Clicking the email copies it too, so people without a mail app still get it.
-    document.getElementById('mail').addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText('wenzuo20@gmail.com');
-        const t = document.createElement('div');
-        t.className = 'toast'; t.textContent = 'Email copied';
-        document.body.append(t); setTimeout(() => t.remove(), 1800);
-      } catch {}
-    });
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual';
+}
+
+// Falling stars, same as the Artworks page. Click anywhere to make them drift the other way.
+const canvas = document.getElementById('sandCanvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+const maxParticles = 500;
+let isReverse = false;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+class Particle {
+  constructor() { this.reset(); }
+  reset() {
+    this.x = Math.random() * canvas.width;
+    this.y = Math.random() * canvas.height;
+    this.size = Math.random() * 2 + 1;
+    this.speed = Math.random() * 0.5 + 0.3;
+    this.opacity = Math.random() * 0.4 + 0.6;
+  }
+  update() {
+    this.y += isReverse ? -this.speed : this.speed;
+    if (this.y > canvas.height || this.y < 0) this.reset();
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+for (let i = 0; i < maxParticles; i++) particles.push(new Particle());
+
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles.forEach(p => { p.update(); p.draw(); });
+  requestAnimationFrame(animate);
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('a') && !e.target.closest('nav') && !e.target.closest('#scroll-buttons')) {
+    isReverse = !isReverse;
+  }
+});
+animate();
+
+// Section by section with the arrows and the links
+const sections = document.querySelectorAll('.artwork');
+let currentSection = 0;
+function scrollToSection(index) {
+  index = Math.max(0, Math.min(sections.length - 1, index));
+  currentSection = index;
+  sections[index].scrollIntoView({ behavior: 'smooth' });
+}
+document.getElementById('art-nav').addEventListener('click', (e) => {
+  const a = e.target.closest('a');
+  if (!a) return;
+  e.preventDefault();
+  const target = document.getElementById(a.getAttribute('href').substring(1));
+  if (target) scrollToSection(Array.from(sections).indexOf(target));
+});
+document.getElementById('scroll-up').addEventListener('click', () => scrollToSection(currentSection - 1));
+document.getElementById('scroll-down').addEventListener('click', () => scrollToSection(currentSection + 1));
+// Keep the arrows in step when scrolling by hand
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(en => { if (en.isIntersecting) currentSection = Array.from(sections).indexOf(en.target); });
+}, { threshold: 0.6 });
+sections.forEach(s => io.observe(s));
+
+// Header hides when scrolling down, comes back when scrolling up
+let lastScrollTop = 0;
+const header = document.querySelector('header');
+window.addEventListener('scroll', () => {
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  header.style.top = scrollTop > lastScrollTop ? '-100px' : '0';
+  lastScrollTop = scrollTop;
+});
+
+// Clicking the email also copies it, for people without a mail app
+document.getElementById('mail').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText('wenzuo20@gmail.com');
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = 'Email copied';
+    document.body.append(t);
+    setTimeout(() => t.remove(), 1800);
+  } catch {}
+});
   </script>
 </body>
 </html>
