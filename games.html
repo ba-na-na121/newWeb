@@ -208,6 +208,18 @@
       font-family: 'Courier New', Courier, monospace;
     }
 
+    /* itch.io cards: the card's own size (552 × 167), shrinking to fit phones */
+    .itch-card {
+      width: 92%;
+      max-width: 552px;
+      aspect-ratio: 552 / 167;
+      margin: 10px auto 0;
+      position: relative;
+      z-index: 1;
+    }
+    .itch-card iframe { width: 100%; height: 100%; border: 0; display: block; }
+    .artwork .credits { font-size: 14px; color: #aaa; margin: -10px 0 10px; font-style: italic; }
+
     .iframe-wrapper {
       width: 90%;
       max-width: 800px;
@@ -226,8 +238,15 @@
   </header>
   <hr style="border: 1px solid white; margin: 10px 0 0;">
   <hr style="border: 1px solid white; margin: 80px 0 20px;" />
-  <nav id="art-nav" style="display: flex; justify-content: center; gap: 30px; margin: 40px 0; font-size: 18px;">
+  <nav id="art-nav" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 30px; margin: 40px auto; padding: 0 20px; max-width: 1100px; font-size: 18px;">
     <a href="#game1" style="color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-weight: bold;">"SIUSIUBOOM"</a>
+    <a href="#under-the-snowman" style="color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-weight: bold;">"UNDER THE SNOWMAN"</a>
+    <a href="#rainy-photo" style="color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-weight: bold;">"RAINY PHOTO"</a>
+    <a href="#dont-touch-my-wall" style="color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-weight: bold;">"DON&#x27;T TOUCH MY WALL"</a>
+    <a href="#ticket-please" style="color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-weight: bold;">"TICKET, PLEASE"</a>
+    <a href="#desert-drive" style="color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-weight: bold;">"DESERT DRIVE SIMULATOR"</a>
+    <a href="#mini-silly-games" style="color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-weight: bold;">"3 MINI SILLY GAMES"</a>
+    <a href="#kaleidoscope-pong" style="color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-weight: bold;">"KALEIDOSCOPE PONG"</a>
     <a href="#game2" style="color: white; text-decoration: none; font-family: 'Courier New', Courier, monospace; font-weight: bold;">"WALKING SIM"</a>
   </nav>
   <hr style="border: 1px solid white; margin: 20px 0 0;" />
@@ -248,6 +267,83 @@
         allowfullscreen
         style="display: block; border: none;">
         <a href="https://russe111.itch.io/siusiuboom">Play SIUSIUBOOM on itch.io</a>
+      </iframe>
+    </div>
+  </section>
+
+  <section class="artwork" id="under-the-snowman">
+    <h2>"UNDER THE SNOWMAN"</h2>
+    <p class="credits">by LiamXia, silvia, spyfox16, NikkiTian, russe111</p>
+    <div class="itch-card">
+      <iframe frameborder="0" loading="lazy" title="UNDER THE SNOWMAN on itch.io"
+        src="https://itch.io/embed/4253038?border_width=0&amp;bg_color=3f4861&amp;fg_color=ffffff&amp;link_color=ba0000&amp;border_color=ffffff">
+        <a href="https://liamxia.itch.io/under-the-snowman">Play UNDER THE SNOWMAN on itch.io</a>
+      </iframe>
+    </div>
+  </section>
+
+  <section class="artwork" id="rainy-photo">
+    <h2>"RAINY PHOTO"</h2>
+    <p class="credits">by LiamXia</p>
+    <div class="itch-card">
+      <iframe frameborder="0" loading="lazy" title="RAINY PHOTO on itch.io"
+        src="https://itch.io/embed/4017390?bg_color=340f03&amp;fg_color=f3ecec&amp;link_color=9e2835&amp;border_color=ffffff">
+        <a href="https://liamxia.itch.io/rainy-photo">Play RAINY PHOTO on itch.io</a>
+      </iframe>
+    </div>
+  </section>
+
+  <section class="artwork" id="dont-touch-my-wall">
+    <h2>"DON&#x27;T TOUCH MY WALL"</h2>
+    <p class="credits">by LiamXia</p>
+    <div class="itch-card">
+      <iframe frameborder="0" loading="lazy" title="DON&#x27;T TOUCH MY WALL on itch.io"
+        src="https://itch.io/embed/4054809?bg_color=566c9b&amp;fg_color=fed96c&amp;link_color=62abff">
+        <a href="https://liamxia.itch.io/wallbuilder">Play DON&#x27;T TOUCH MY WALL on itch.io</a>
+      </iframe>
+    </div>
+  </section>
+
+  <section class="artwork" id="ticket-please">
+    <h2>"TICKET, PLEASE"</h2>
+    <p class="credits">by LiamXia</p>
+    <div class="itch-card">
+      <iframe frameborder="0" loading="lazy" title="TICKET, PLEASE on itch.io"
+        src="https://itch.io/embed/3945998?bg_color=6e6d56&amp;fg_color=cbb331&amp;link_color=a60000&amp;border_color=ffffff">
+        <a href="https://liamxia.itch.io/ticket-please">Play TICKET, PLEASE on itch.io</a>
+      </iframe>
+    </div>
+  </section>
+
+  <section class="artwork" id="desert-drive">
+    <h2>"DESERT DRIVE SIMULATOR"</h2>
+    <p class="credits">by LiamXia</p>
+    <div class="itch-card">
+      <iframe frameborder="0" loading="lazy" title="DESERT DRIVE SIMULATOR on itch.io"
+        src="https://itch.io/embed/3890531?bg_color=7b95e1&amp;fg_color=ffc480&amp;link_color=ffd911&amp;border_color=ffffff">
+        <a href="https://liamxia.itch.io/desert">Play DESERT DRIVE SIMULATOR on itch.io</a>
+      </iframe>
+    </div>
+  </section>
+
+  <section class="artwork" id="mini-silly-games">
+    <h2>"3 MINI SILLY GAMES"</h2>
+    <p class="credits">by LiamXia</p>
+    <div class="itch-card">
+      <iframe frameborder="0" loading="lazy" title="3 MINI SILLY GAMES on itch.io"
+        src="https://itch.io/embed/3876478?bg_color=ffc325&amp;fg_color=000000&amp;link_color=ff1111&amp;border_color=000000">
+        <a href="https://liamxia.itch.io/3-mini-silly-games">Play 3 MINI SILLY GAMES on itch.io</a>
+      </iframe>
+    </div>
+  </section>
+
+  <section class="artwork" id="kaleidoscope-pong">
+    <h2>"KALEIDOSCOPE PONG"</h2>
+    <p class="credits">by LiamXia</p>
+    <div class="itch-card">
+      <iframe frameborder="0" loading="lazy" title="KALEIDOSCOPE PONG on itch.io"
+        src="https://itch.io/embed/3861852?bg_color=626262&amp;fg_color=ffffff&amp;link_color=ff6358&amp;border_color=ffffff">
+        <a href="https://liamxia.itch.io/kaleidoscope-pong">Play KALEIDOSCOPE PONG on itch.io</a>
       </iframe>
     </div>
   </section>
