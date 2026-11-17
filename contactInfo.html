@@ -88,7 +88,6 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      z-index: 1;
     }
     .artwork h2 {
       text-transform: uppercase;
@@ -103,13 +102,28 @@
     }
     .artwork a { color: white; }
 
-    /* Intro */
-    .portrait {
-      width: 240px;
-      max-width: 62vw;
-      height: auto;
-      border-radius: 12px;
-      margin: 0 0 22px;
+    /* Intro: six drawn heads that turn to look at the cursor */
+    .heads {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 6px;
+      margin: 0 0 18px;
+      perspective: 700px;
+    }
+    .head {
+      width: 118px;
+      height: 160px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+    .head img { max-width: 100%; max-height: 100%; display: block; pointer-events: none; user-select: none; }
+    @media (max-width: 760px) {
+      .heads { display: grid; grid-template-columns: repeat(3, 96px); gap: 8px 10px; justify-content: center; }
+      .head { width: 96px; height: 120px; }
     }
     .lede {
       font-size: 19px !important;
@@ -200,7 +214,14 @@
   </header>
 
   <section class="artwork" id="about">
-    <img class="portrait" src="ArtWorks照片/selfie.webp" alt="Portrait of Wenzuo Xia">
+    <div class="heads" role="img" aria-label="Six drawings of Wenzuo Xia's face">
+      <div class="head"><img src="heads/head1.svg" alt=""></div>
+      <div class="head"><img src="heads/head2.svg" alt=""></div>
+      <div class="head"><img src="heads/head3.svg" alt=""></div>
+      <div class="head"><img src="heads/head4.svg" alt=""></div>
+      <div class="head"><img src="heads/head5.svg" alt=""></div>
+      <div class="head"><img src="heads/head6.svg" alt=""></div>
+    </div>
     <h2>"Creative Technologist"</h2>
     <p class="lede">I turn ideas into things people can use, play and wear: apps and interfaces, games, and creative work shaped by youth culture and the underground.</p>
     <ul class="facts">
@@ -389,6 +410,41 @@ window.addEventListener('scroll', () => {
   header.style.top = scrollTop > lastScrollTop ? '-100px' : '0';
   lastScrollTop = scrollTop;
 });
+
+// The heads turn toward the mouse (or finger). Each one works out its own angle from where it sits,
+// and eases toward it so the movement feels like a head turning, not snapping.
+(() => {
+  const heads = [...document.querySelectorAll('.head')];
+  if (!heads.length || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let px = null, py = null, lastMove = 0;
+  const state = heads.map(() => ({ rx: 0, ry: 0, tx: 0, ty: 0 }));
+  const point = (x, y) => { px = x; py = y; lastMove = performance.now(); };
+  window.addEventListener('pointermove', (e) => point(e.clientX, e.clientY), { passive: true });
+  window.addEventListener('touchstart', (e) => point(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  window.addEventListener('touchmove', (e) => point(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  const clamp = (v, a) => Math.max(-a, Math.min(a, v));
+  function frame(t) {
+    const idle = px === null || t - lastMove > 4000;
+    heads.forEach((el, i) => {
+      const r = el.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > innerHeight) return;
+      let gx, gy;
+      if (idle) {             // nobody is moving: look around slowly, each at its own pace
+        gx = Math.sin(t / 1600 + i * 1.3) * 0.35;
+        gy = Math.cos(t / 2100 + i * 0.9) * 0.2;
+      } else {
+        gx = clamp((px - (r.left + r.width / 2)) / (innerWidth * 0.45), 1);
+        gy = clamp((py - (r.top + r.height / 2)) / (innerHeight * 0.45), 1);
+      }
+      const s = state[i];
+      const goal = { ry: gx * 32, rx: -gy * 24, tx: gx * 8, ty: gy * 6 };
+      for (const k in goal) s[k] += (goal[k] - s[k]) * 0.12;
+      el.style.transform = `translate(${s.tx.toFixed(2)}px, ${s.ty.toFixed(2)}px) rotateY(${s.ry.toFixed(2)}deg) rotateX(${s.rx.toFixed(2)}deg)`;
+    });
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
 
 // Clicking the email also copies it, for people without a mail app
 document.getElementById('mail').addEventListener('click', async () => {
