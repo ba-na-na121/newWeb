@@ -6,7 +6,20 @@
   <title>Wenzuo Xia</title>
   <meta name="description" content="Wenzuo Xia — artworks, digital works, games and ideas.">
   <link rel="stylesheet" href="earth.css">
+  <script>
+    // Lifestyle and Ideas are private: their links only show on your own browsers.
+    // Open index.html?me once on a device to show them there (remembered); index.html?guest hides them again.
+    try {
+      const q = new URLSearchParams(location.search);
+      if (q.has('me')) localStorage.setItem('wenzuo.me', '1');
+      if (q.has('guest')) localStorage.removeItem('wenzuo.me');
+      if (localStorage.getItem('wenzuo.me') === '1') document.documentElement.classList.add('me');
+      if (q.has('me') || q.has('guest')) history.replaceState(null, '', location.pathname);
+    } catch (e) {}
+  </script>
   <style>
+    .private { display: none; }
+    html.me .private { display: inline; }
     #left-nav, #right-nav {
       position: absolute;
       top: 120px;
@@ -51,13 +64,13 @@
 <header id="main-header" onclick="window.location.href='index.html'">Wenzuo Xia</header>
 
 <nav id="left-nav">
-  <a href="password.html">Lifestyle</a>
+  <a class="private" href="password.html">Lifestyle</a>
   <a href="artworks.html">Artworks</a>
   <a href="https://ba-na-na121.github.io/Website/" target="_blank" rel="noopener">Digital Works</a>
 </nav>
 
 <nav id="right-nav">
-  <a href="ideas.html">Ideas</a>
+  <a class="private" href="ideas.html">Ideas</a>
   <a href="games.html">Games</a>
   <a href="contactInfo.html">Contact Info</a>
 </nav>
