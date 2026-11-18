@@ -102,29 +102,23 @@
     }
     .artwork a { color: white; }
 
-    /* Intro: six drawn heads that turn to look at the cursor */
-    .heads {
-      display: flex;
-      justify-content: center;
-      align-items: flex-end;
-      gap: 6px;
-      margin: 0 0 18px;
-      perspective: 700px;
+    /* Intro: one 3D-feeling head that turns toward the cursor.
+       Middle angles: the front view with depth parallax (WebGL). Far left/right: the side views fade in. */
+    .head3d {
+      position: relative;
+      width: min(330px, 62vw);
+      aspect-ratio: 703 / 900;
+      margin: 0 auto 18px;
+      perspective: 900px;
     }
-    .head {
-      width: 118px;
-      height: 160px;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      transform-style: preserve-3d;
-      will-change: transform;
+    .head3d .stage { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; }
+    .head3d canvas#faceGL, .head3d img {
+      position: absolute; top: 0; left: 50%; height: 100%; width: auto;
+      transform: translateX(-50%); pointer-events: none; user-select: none; z-index: auto;
     }
-    .head img { max-width: 100%; max-height: 100%; display: block; pointer-events: none; user-select: none; }
-    @media (max-width: 760px) {
-      .heads { display: grid; grid-template-columns: repeat(3, 96px); gap: 8px 10px; justify-content: center; }
-      .head { width: 96px; height: 120px; }
-    }
+    .head3d canvas#faceGL { width: 100%; left: 0; transform: none; }
+    .head3d img.front-fallback { width: 100%; left: 0; transform: none; }
+    .head3d img.side { opacity: 0; }
     .lede {
       font-size: 19px !important;
       font-weight: bold;
@@ -214,13 +208,12 @@
   </header>
 
   <section class="artwork" id="about">
-    <div class="heads" role="img" aria-label="Six drawings of Wenzuo Xia's face">
-      <div class="head"><img src="heads/head1.svg" alt=""></div>
-      <div class="head"><img src="heads/head2.svg" alt=""></div>
-      <div class="head"><img src="heads/head3.svg" alt=""></div>
-      <div class="head"><img src="heads/head4.svg" alt=""></div>
-      <div class="head"><img src="heads/head5.svg" alt=""></div>
-      <div class="head"><img src="heads/head6.svg" alt=""></div>
+    <div class="head3d" id="head3d" role="img" aria-label="A line drawing of Wenzuo Xia's head that turns to look at the cursor">
+      <div class="stage">
+        <img class="front-fallback" src="heads/front.webp" alt="">
+        <img class="side left" src="heads/left.webp" alt="">
+        <img class="side right" src="heads/right.webp" alt="">
+      </div>
     </div>
     <h2>"Creative Technologist"</h2>
     <p class="lede">I turn ideas into things people can use, play and wear: apps and interfaces, games, and creative work shaped by youth culture and the underground.</p>
@@ -411,36 +404,93 @@ window.addEventListener('scroll', () => {
   lastScrollTop = scrollTop;
 });
 
-// The heads turn toward the mouse (or finger). Each one works out its own angle from where it sits,
-// and eases toward it so the movement feels like a head turning, not snapping.
+// The head turns toward the mouse (or finger).
+//  - Small angles: the front drawing is shifted by a depth map in WebGL, so the nose and glasses move
+//    more than the ears and hair — it reads as a head turning, smoothly.
+//  - Toward the edges of the screen: the left or right profile fades in.
 (() => {
-  const heads = [...document.querySelectorAll('.head')];
-  if (!heads.length || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const box = document.getElementById('head3d');
+  if (!box) return;
+  const stage = box.querySelector('.stage');
+  const fallback = box.querySelector('.front-fallback');
+  const left = box.querySelector('.side.left'), right = box.querySelector('.side.right');
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (still) return;   // keep the plain front drawing
+
+  // --- WebGL depth parallax on the front view ---
+  let gl = null, uM = null, glCanvas = null;
+  const load = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  Promise.all([load('heads/front.webp'), load('heads/front_depth.webp')]).then(([img, dep]) => {
+    glCanvas = document.createElement('canvas');
+    glCanvas.id = 'faceGL';
+    gl = glCanvas.getContext('webgl', { premultipliedAlpha: true, alpha: true });
+    if (!gl) return;
+    const vs = 'attribute vec2 p; varying vec2 uv; void main(){ uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }';
+    const fs = `precision mediump float; varying vec2 uv; uniform sampler2D img; uniform sampler2D dep; uniform vec2 m;
+      void main(){ float d = texture2D(dep, uv).r; vec2 o = m * (d - 0.35) * 0.075; gl_FragColor = texture2D(img, uv - o); }`;
+    const sh = (t, s) => { const x = gl.createShader(t); gl.shaderSource(x, s); gl.compileShader(x); return x; };
+    const prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(prog); gl.useProgram(prog);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+    const tex = (unit, im) => {
+      const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, im);
+    };
+    tex(0, img); tex(1, dep);
+    gl.uniform1i(gl.getUniformLocation(prog, 'img'), 0); gl.uniform1i(gl.getUniformLocation(prog, 'dep'), 1);
+    uM = gl.getUniformLocation(prog, 'm');
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    const size = () => {
+      const r = box.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+      glCanvas.width = Math.round(r.width * dpr); glCanvas.height = Math.round(r.height * dpr);
+      gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+    };
+    size(); addEventListener('resize', size);
+    stage.prepend(glCanvas);
+    fallback.style.visibility = 'hidden';
+  }).catch(() => {});
+
+  // --- Follow the pointer ---
   let px = null, py = null, lastMove = 0;
-  const state = heads.map(() => ({ rx: 0, ry: 0, tx: 0, ty: 0 }));
   const point = (x, y) => { px = x; py = y; lastMove = performance.now(); };
-  window.addEventListener('pointermove', (e) => point(e.clientX, e.clientY), { passive: true });
-  window.addEventListener('touchstart', (e) => point(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
-  window.addEventListener('touchmove', (e) => point(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
-  const clamp = (v, a) => Math.max(-a, Math.min(a, v));
+  addEventListener('pointermove', (e) => point(e.clientX, e.clientY), { passive: true });
+  addEventListener('touchstart', (e) => point(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  addEventListener('touchmove', (e) => point(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  const clamp = (v, a = 1) => Math.max(-a, Math.min(a, v));
+  const smooth = (a, b, v) => { const u = Math.max(0, Math.min(1, (v - a) / (b - a))); return u * u * (3 - 2 * u); };
+  let cx = 0, cy = 0;
   function frame(t) {
-    const idle = px === null || t - lastMove > 4000;
-    heads.forEach((el, i) => {
-      const r = el.getBoundingClientRect();
-      if (r.bottom < 0 || r.top > innerHeight) return;
+    const r = box.getBoundingClientRect();
+    if (r.bottom > 0 && r.top < innerHeight) {
       let gx, gy;
-      if (idle) {             // nobody is moving: look around slowly, each at its own pace
-        gx = Math.sin(t / 1600 + i * 1.3) * 0.35;
-        gy = Math.cos(t / 2100 + i * 0.9) * 0.2;
+      if (px === null || t - lastMove > 4000) {      // nobody is moving: look around slowly
+        gx = Math.sin(t / 2200) * 0.5;
+        gy = Math.sin(t / 3100) * 0.2;
       } else {
-        gx = clamp((px - (r.left + r.width / 2)) / (innerWidth * 0.45), 1);
-        gy = clamp((py - (r.top + r.height / 2)) / (innerHeight * 0.45), 1);
+        gx = clamp((px - (r.left + r.width / 2)) / (innerWidth * 0.42));
+        gy = clamp((py - (r.top + r.height / 2)) / (innerHeight * 0.42));
       }
-      const s = state[i];
-      const goal = { ry: gx * 32, rx: -gy * 24, tx: gx * 8, ty: gy * 6 };
-      for (const k in goal) s[k] += (goal[k] - s[k]) * 0.12;
-      el.style.transform = `translate(${s.tx.toFixed(2)}px, ${s.ty.toFixed(2)}px) rotateY(${s.ry.toFixed(2)}deg) rotateX(${s.rx.toFixed(2)}deg)`;
-    });
+      cx += (gx - cx) * 0.09; cy += (gy - cy) * 0.09;
+      // the profiles take over toward the edges
+      const sideL = smooth(0.58, 0.8, -cx), sideR = smooth(0.58, 0.8, cx);
+      const front = 1 - Math.max(sideL, sideR);
+      left.style.opacity = sideL.toFixed(3); right.style.opacity = sideR.toFixed(3);
+      if (glCanvas) glCanvas.style.opacity = front.toFixed(3); else fallback.style.opacity = front.toFixed(3);
+      stage.style.transform = `translateX(${(cx * 22).toFixed(2)}px) translateY(${(cy * 10).toFixed(2)}px) rotateY(${(cx * 16).toFixed(2)}deg) rotateX(${(-cy * 10).toFixed(2)}deg)`;
+      if (gl && uM) {
+        const k = clamp(cx / 0.65);   // parallax grows until the profile takes over
+        gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.uniform2f(uM, k, -cy);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
+    }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
