@@ -19,7 +19,7 @@
   </script>
   <style>
     .private { display: none; }
-    html.me .private { display: inline; }
+    html.me .private { display: inline; animation: navIn .6s ease-out; }
     #left-nav, #right-nav {
       position: absolute;
       top: 120px;
@@ -61,7 +61,7 @@
 </head>
 
 <body>
-<header id="main-header" onclick="window.location.href='index.html'">Wenzuo Xia</header>
+<header id="main-header">Wenzuo Xia</header>
 
 <nav id="left-nav">
   <a class="private" href="password.html">Lifestyle</a>
@@ -83,5 +83,21 @@
 <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
 <script src="earth.js"></script>
 <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+<script>
+  // Hidden entrance: tap the name 5 times quickly to show (or hide again) Lifestyle and Ideas.
+  // The choice is remembered on this browser.
+  (() => {
+    const head = document.getElementById('main-header');
+    let taps = [];
+    head.addEventListener('click', () => {
+      const now = Date.now();
+      taps = taps.filter(t => now - t < 2000).concat(now);
+      if (taps.length < 5) return;
+      taps = [];
+      const on = document.documentElement.classList.toggle('me');
+      try { on ? localStorage.setItem('wenzuo.me', '1') : localStorage.removeItem('wenzuo.me'); } catch (e) {}
+    });
+  })();
+</script>
 </body>
 </html>
