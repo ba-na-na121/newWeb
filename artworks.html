@@ -646,14 +646,37 @@ function scrollToSection(index) {
   sections[index].scrollIntoView({ behavior: 'smooth' });
 }
 
-// 点击导航栏链接，直接滑到对应section顶部
+// Jump straight to a work. Images above it keep loading (lazy) and push it down, so for a few seconds
+// we keep putting its top back at the top of the screen — until the page stops changing size or the
+// visitor scrolls on their own.
+function jumpTo(el) {
+  // This page scrolls inside <body> (body and html are both 100% tall), not the window.
+  const sc = [document.body, document.documentElement].find(e => e.scrollHeight > e.clientHeight + 1) || document.scrollingElement;
+  const go = () => {
+    sc.style.scrollBehavior = 'auto';
+    sc.scrollTop += el.getBoundingClientRect().top - Math.max(0, sc.getBoundingClientRect().top);
+  };
+  go();
+  // body itself is a fixed 100% tall, so watch the sections: they grow as their images arrive.
+  const ro = new ResizeObserver(go);
+  sections.forEach(sec => ro.observe(sec));
+  const stop = () => {
+    ro.disconnect();
+    sc.style.scrollBehavior = '';
+    ['wheel', 'touchstart', 'keydown'].forEach(t => removeEventListener(t, stop));
+  };
+  ['wheel', 'touchstart', 'keydown'].forEach(t => addEventListener(t, stop, { passive: true }));
+  setTimeout(stop, 4000);
+}
+
+// 点击导航栏链接，直接跳到对应作品
 document.getElementById('art-nav').addEventListener('click', (e) => {
   if (e.target.tagName === 'A') {
     e.preventDefault();
     const targetId = e.target.getAttribute('href').substring(1);
     const targetSection = document.getElementById(targetId);
     if (targetSection) {
-      targetSection.scrollIntoView({ behavior: 'smooth' });
+      jumpTo(targetSection);
       currentSection = Array.from(sections).indexOf(targetSection);
     }
   }
