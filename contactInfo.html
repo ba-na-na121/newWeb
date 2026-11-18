@@ -102,23 +102,31 @@
     }
     .artwork a { color: white; }
 
-    /* Intro: one 3D-feeling head that turns toward the cursor.
-       Middle angles: the front view with depth parallax (WebGL). Far left/right: the side views fade in. */
-    .head3d {
+    /* Intro: a row of six drawn heads; each one turns a little toward the cursor (depth parallax in WebGL). */
+    .heads {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: clamp(4px, 1.2vw, 18px);
+      width: min(1100px, 100%);
+      margin: 0 auto 22px;
       position: relative;
-      width: min(330px, 62vw);
-      aspect-ratio: 703 / 900;
-      margin: 0 auto 18px;
-      perspective: 900px;
+      z-index: 1;            /* above the falling stars, so they pass behind the heads */
     }
-    .head3d .stage { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; }
-    .head3d canvas#faceGL, .head3d img {
-      position: absolute; top: 0; left: 50%; height: 100%; width: auto;
-      transform: translateX(-50%); pointer-events: none; user-select: none; z-index: auto;
+    .heads .head {
+      position: relative;
+      height: clamp(120px, 19vw, 230px);
+      perspective: 700px;
+      flex: 0 0 auto;
     }
-    .head3d canvas#faceGL { width: 100%; left: 0; transform: none; }
-    .head3d img.front-fallback { width: 100%; left: 0; transform: none; }
-    .head3d img.side { opacity: 0; }
+    .heads .stage { position: relative; height: 100%; transform-style: preserve-3d; will-change: transform; }
+    .heads img, .heads canvas { display: block; height: 100%; width: auto; pointer-events: none; user-select: none; }
+    .heads canvas { position: absolute; inset: 0; width: 100%; }
+    /* Phones: two rows of three, so the drawings stay big enough to read */
+    @media (max-width: 640px) {
+      .heads { flex-wrap: wrap; row-gap: 10px; max-width: 360px; }
+      .heads .head { height: 128px; }
+    }
     .lede {
       font-size: 19px !important;
       font-weight: bold;
@@ -208,12 +216,13 @@
   </header>
 
   <section class="artwork" id="about">
-    <div class="head3d" id="head3d" role="img" aria-label="A line drawing of Wenzuo Xia's head that turns to look at the cursor">
-      <div class="stage">
-        <img class="front-fallback" src="heads/front.webp" alt="">
-        <img class="side left" src="heads/left.webp" alt="">
-        <img class="side right" src="heads/right.webp" alt="">
-      </div>
+    <div class="heads" id="heads" role="img" aria-label="Six line drawings of Wenzuo Xia's head that turn to look at the cursor">
+      <div class="head"><div class="stage"><img src="heads/h1.webp" alt=""></div></div>
+      <div class="head"><div class="stage"><img src="heads/h2.webp" alt=""></div></div>
+      <div class="head"><div class="stage"><img src="heads/h3.webp" alt=""></div></div>
+      <div class="head"><div class="stage"><img src="heads/h4.webp" alt=""></div></div>
+      <div class="head"><div class="stage"><img src="heads/h5.webp" alt=""></div></div>
+      <div class="head"><div class="stage"><img src="heads/h6.webp" alt=""></div></div>
     </div>
     <h2>"Creative Technologist"</h2>
     <p class="lede">I turn ideas into things people can use, play and wear: apps and interfaces, games, and creative work shaped by youth culture and the underground.</p>
@@ -404,91 +413,84 @@ window.addEventListener('scroll', () => {
   lastScrollTop = scrollTop;
 });
 
-// The head turns toward the mouse (or finger).
-//  - Small angles: the front drawing is shifted by a depth map in WebGL, so the nose and glasses move
-//    more than the ears and hair — it reads as a head turning, smoothly.
-//  - Toward the edges of the screen: the left or right profile fades in.
+// The six heads turn toward the mouse (or finger), each from its own position in the row.
+// The drawing is shifted by a soft dome-shaped depth map in WebGL, so the middle of the face moves more
+// than the outline — it reads as a small head turn. The turn is kept small (about 14° at most).
 (() => {
-  const box = document.getElementById('head3d');
-  if (!box) return;
-  const stage = box.querySelector('.stage');
-  const fallback = box.querySelector('.front-fallback');
-  const left = box.querySelector('.side.left'), right = box.querySelector('.side.right');
-  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (still) return;   // keep the plain front drawing
-
-  // --- WebGL depth parallax on the front view ---
-  let gl = null, uM = null, glCanvas = null;
+  const row = document.getElementById('heads');
+  if (!row || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const load = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
-  Promise.all([load('heads/front.webp'), load('heads/front_depth.webp')]).then(([img, dep]) => {
-    glCanvas = document.createElement('canvas');
-    glCanvas.id = 'faceGL';
-    gl = glCanvas.getContext('webgl', { premultipliedAlpha: true, alpha: true });
-    if (!gl) return;
-    const vs = 'attribute vec2 p; varying vec2 uv; void main(){ uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }';
-    const fs = `precision mediump float; varying vec2 uv; uniform sampler2D img; uniform sampler2D dep; uniform vec2 m;
-      void main(){ float d = texture2D(dep, uv).r; vec2 o = m * (d - 0.35) * 0.075; gl_FragColor = texture2D(img, uv - o); }`;
-    const sh = (t, s) => { const x = gl.createShader(t); gl.shaderSource(x, s); gl.compileShader(x); return x; };
-    const prog = gl.createProgram();
-    gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
-    gl.linkProgram(prog); gl.useProgram(prog);
-    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-    const tex = (unit, im) => {
-      const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, im);
-    };
-    tex(0, img); tex(1, dep);
-    gl.uniform1i(gl.getUniformLocation(prog, 'img'), 0); gl.uniform1i(gl.getUniformLocation(prog, 'dep'), 1);
-    uM = gl.getUniformLocation(prog, 'm');
-    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    const size = () => {
-      const r = box.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
-      glCanvas.width = Math.round(r.width * dpr); glCanvas.height = Math.round(r.height * dpr);
-      gl.viewport(0, 0, glCanvas.width, glCanvas.height);
-    };
-    size(); addEventListener('resize', size);
-    stage.prepend(glCanvas);
-    fallback.style.visibility = 'hidden';
-  }).catch(() => {});
+  const vs = 'attribute vec2 p; varying vec2 uv; void main(){ uv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }';
+  const fs = `precision mediump float; varying vec2 uv; uniform sampler2D img; uniform sampler2D dep; uniform vec2 m;
+    void main(){ float d = texture2D(dep, uv).r; vec2 o = m * (d - 0.3) * 0.05; gl_FragColor = texture2D(img, uv - o); }`;
 
-  // --- Follow the pointer ---
+  const heads = [...row.querySelectorAll('.head')].map((el, i) => ({
+    el, stage: el.querySelector('.stage'), img: el.querySelector('img'),
+    gl: null, uM: null, cx: 0, cy: 0, phase: i * 1.3,
+  }));
+
+  heads.forEach((h, i) => {
+    Promise.all([load(h.img.src), load(`heads/h${i + 1}_depth.webp`)]).then(([img, dep]) => {
+      const c = document.createElement('canvas');
+      const gl = c.getContext('webgl', { premultipliedAlpha: true, alpha: true });
+      if (!gl) return;
+      const sh = (t, s) => { const x = gl.createShader(t); gl.shaderSource(x, s); gl.compileShader(x); return x; };
+      const prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(prog); gl.useProgram(prog);
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+      [img, dep].forEach((im, unit) => {
+        gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, im);
+      });
+      gl.uniform1i(gl.getUniformLocation(prog, 'img'), 0); gl.uniform1i(gl.getUniformLocation(prog, 'dep'), 1);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      const size = () => {
+        const r = h.el.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+        c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
+        gl.viewport(0, 0, c.width, c.height);
+      };
+      size(); addEventListener('resize', size);
+      h.stage.append(c);
+      h.img.style.visibility = 'hidden';
+      h.gl = gl; h.uM = gl.getUniformLocation(prog, 'm');
+    }).catch(() => {});
+  });
+
   let px = null, py = null, lastMove = 0;
   const point = (x, y) => { px = x; py = y; lastMove = performance.now(); };
   addEventListener('pointermove', (e) => point(e.clientX, e.clientY), { passive: true });
   addEventListener('touchstart', (e) => point(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
   addEventListener('touchmove', (e) => point(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
   const clamp = (v, a = 1) => Math.max(-a, Math.min(a, v));
-  const smooth = (a, b, v) => { const u = Math.max(0, Math.min(1, (v - a) / (b - a))); return u * u * (3 - 2 * u); };
-  let cx = 0, cy = 0;
+
   function frame(t) {
-    const r = box.getBoundingClientRect();
-    if (r.bottom > 0 && r.top < innerHeight) {
-      let gx, gy;
-      if (px === null || t - lastMove > 4000) {      // nobody is moving: look around slowly
-        gx = Math.sin(t / 2200) * 0.5;
-        gy = Math.sin(t / 3100) * 0.2;
-      } else {
-        gx = clamp((px - (r.left + r.width / 2)) / (innerWidth * 0.42));
-        gy = clamp((py - (r.top + r.height / 2)) / (innerHeight * 0.42));
-      }
-      cx += (gx - cx) * 0.09; cy += (gy - cy) * 0.09;
-      // the profiles take over toward the edges
-      const sideL = smooth(0.58, 0.8, -cx), sideR = smooth(0.58, 0.8, cx);
-      const front = 1 - Math.max(sideL, sideR);
-      left.style.opacity = sideL.toFixed(3); right.style.opacity = sideR.toFixed(3);
-      if (glCanvas) glCanvas.style.opacity = front.toFixed(3); else fallback.style.opacity = front.toFixed(3);
-      stage.style.transform = `translateX(${(cx * 22).toFixed(2)}px) translateY(${(cy * 10).toFixed(2)}px) rotateY(${(cx * 16).toFixed(2)}deg) rotateX(${(-cy * 10).toFixed(2)}deg)`;
-      if (gl && uM) {
-        const k = clamp(cx / 0.65);   // parallax grows until the profile takes over
-        gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.uniform2f(uM, k, -cy);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    const rr = row.getBoundingClientRect();
+    if (rr.bottom > 0 && rr.top < innerHeight) {
+      const idle = px === null || t - lastMove > 4000;
+      for (const h of heads) {
+        const r = h.el.getBoundingClientRect();
+        let gx, gy;
+        if (idle) {                                   // nobody is moving: each head looks around on its own
+          gx = Math.sin(t / 2300 + h.phase) * 0.55;
+          gy = Math.sin(t / 3300 + h.phase * 0.7) * 0.3;
+        } else {
+          gx = clamp((px - (r.left + r.width / 2)) / (innerWidth * 0.45));
+          gy = clamp((py - (r.top + r.height / 2)) / (innerHeight * 0.45));
+        }
+        h.cx += (gx - h.cx) * 0.08; h.cy += (gy - h.cy) * 0.08;
+        h.stage.style.transform = `translateX(${(h.cx * 6).toFixed(2)}px) translateY(${(h.cy * 4).toFixed(2)}px) rotateY(${(h.cx * 14).toFixed(2)}deg) rotateX(${(-h.cy * 9).toFixed(2)}deg)`;
+        if (h.gl) {
+          h.gl.clearColor(0, 0, 0, 0); h.gl.clear(h.gl.COLOR_BUFFER_BIT);
+          h.gl.uniform2f(h.uM, h.cx, -h.cy);
+          h.gl.drawArrays(h.gl.TRIANGLE_STRIP, 0, 4);
+        }
       }
     }
     requestAnimationFrame(frame);
